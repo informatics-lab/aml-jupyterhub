@@ -1,6 +1,7 @@
 """Create an AzureML Spawner for JupyterHub."""
 
 from concurrent.futures import ThreadPoolExecutor
+import os
 import time
 from traitlets import Unicode, Integer, default
 
@@ -23,11 +24,13 @@ class AMLSpawner(Spawner):
 
     """
 
+    _vm_started_states = ["starting", "running"]
+    _vm_transition_states = ["creating", "updating", "deleting"]
+    _vm_stopped_states = ["stopping", "stopped"]
+    _vm_bad_states = ["failed"]
+
     ip = Unicode('0.0.0.0', config=True,
                  help="The IP Address of the spawned JupyterLab instance.")
-
-    # port = Unicode("", config=True,
-    #                help="The port of the spawned JupyterHub instance.")
 
     start_timeout = Integer(
         360, config=True,
@@ -37,15 +40,6 @@ class AMLSpawner(Spawner):
         Callers of spawner.start will assume that startup has failed if it takes longer than this.
         start should return when the server process is started and its location is known.
         """)
-
-    _executor = None
-
-    @property
-    def executor(self):
-        cls = self.__class__
-        if cls._executor is None:
-            cls._executor = ThreadPoolExecutor(1)
-        return cls._executor
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -57,7 +51,7 @@ class AMLSpawner(Spawner):
         self.compute_instance = None
         self._application_urls = None
 
-        # XXX: really??
+        # XXX: this can be done better.
         self._authenticate()
 
     def _authenticate(self):
@@ -92,9 +86,8 @@ class AMLSpawner(Spawner):
         applications = self.compute_instance.applications
         return {d["displayName"]: d["endpointUri"] for d in applications}
 
-    # @run_on_executor
     def _poll_compute_setup(self):
-        compute_instance_status = self.compute_instance.status
+        compute_instance_status = self.compute_instance.get_status()
         state = compute_instance_status.state
         errors = compute_instance_status.errors
         return state, errors
@@ -150,16 +143,16 @@ class AMLSpawner(Spawner):
             state, _ = self._poll_compute_setup()
             if state.lower() == target_state:
                 break
+            elif state.lower() in self._vm_bad_states:
+                raise ComputeTargetException(f"Compute instance in failed state: {state!r}.")
             time.sleep(2)
 
-    # @run_on_executor
     def _set_up_resources(self):
         """Both of these methods are blocking, so try and async them as a pair."""
         self._set_up_workspace()
         self._set_up_compute_instance()
         self._start_compute_instance()  # Ensure existing but stopped resources are running.
 
-    # @run_on_executor
     def _tear_down_resources(self):
         """This method blocks, so try and async it and pass back to a checker."""
         self._stop_compute_instance()
@@ -171,19 +164,17 @@ class AMLSpawner(Spawner):
 
     @gen.coroutine
     def start(self):
-        """Start (spawn) AzureML resouces. Must be a coroutine."""
+        """Start (spawn) AzureML resouces."""
         self._set_up_resources()
 
         target_state = "running"
         self._wait_for_target_state(target_state)
 
         return self.application_urls["Jupyter Lab"]
-        # self.port = ""  # Hacky McHackface.
-        # return (self.ip, self.port)
 
     @gen.coroutine
     def stop(self, now=False):
-        """Stop and terminate all spawned AzureML resources. Must be a coroutine."""
+        """Stop and terminate all spawned AzureML resources."""
         self._tear_down_resources()
 
         if not now:
@@ -193,20 +184,26 @@ class AMLSpawner(Spawner):
     @gen.coroutine
     def poll(self):
         """
-        Healthcheck of spawned AzureML resources. Must be a coroutine.
+        Healthcheck of spawned AzureML resources.
 
         Checked statuses are as follows:
           * None: resources are running or starting up
           * 0 if unknown exit status
-          * int > 0 for known exit status
+          * int > 0 for known exit status:
+              * 1: Known error returned by polling the instance
+              * 2: Compute instance found in an unhealthy state
+              * 3: Compute instance stopped
 
         """
         result = None
         if self.compute_instance is not None:
             status, errors = self._poll_compute_setup()
-            if status.lower() not in ["starting", "running"]:
-                if status.lower() == "stopped":
-                    # Assign code 2 == instance stopped.
+            if status.lower() not in self._vm_started_states:
+                if status.lower() in self._vm_stopped_states:
+                    # Assign code 3 == instance stopped.
+                    result = 3
+                elif status.lower() in self._vm_bad_states:
+                    # Assign code 2 == instance bad.
                     result = 2
                 elif len(errors):
                     # Known error.
@@ -215,7 +212,7 @@ class AMLSpawner(Spawner):
                     # Something else.
                     result = 0
         else:
-            # Compute has not started, so treat as if not running.
+            # Compute has not started, so treat as if not running.
             result = 0
         return result
 
@@ -233,13 +230,3 @@ class AMLSpawner(Spawner):
             self.workspace_name = state["workspace_name"]
         if "compute_instance_name" in state:
             self.compute_instance_name = state["compute_instance_name"]
-
-    # async def progress(self):
-    #     """
-    #     Report on progress toward creating AzureML resources.
-
-    #     Not essential, but given that AML resourece generation is sloooooowwww,
-    #     having this might be good from a UX perspective.
-
-    #     """
-    #     return
