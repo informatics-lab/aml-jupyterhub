@@ -162,8 +162,6 @@ class AMLSpawner(Spawner):
                 print(e)
                 raise
 
-    # @run_on_executor
-
     def _set_up_resources(self):
         """Both of these methods are blocking, so try and async them as a pair."""
         self._set_up_workspace()
@@ -196,8 +194,6 @@ class AMLSpawner(Spawner):
             route = self.redirect_server.route
 
         return route
-        # self.port = ""  # Hacky McHackface.
-        # return (self.ip, self.port)
 
     @gen.coroutine
     def stop(self, now=False):
