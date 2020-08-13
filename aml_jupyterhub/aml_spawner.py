@@ -155,12 +155,8 @@ class AMLSpawner(Spawner):
 
     def _stop_redirect(self):
         if self.redirect_server:
-            try:
-                self.redirect_server.stop()
-                self.redirect_server = None
-            except Exception as e:
-                print(e)
-                raise
+            self.redirect_server.stop()
+            self.redirect_server = None
 
     def _set_up_resources(self):
         """Both of these methods are blocking, so try and async them as a pair."""
