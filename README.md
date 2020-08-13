@@ -1,3 +1,5 @@
+# aml_jupyterhub
+
 ## About
 
 Code work and experiments to integrate Azure Machine Learning with JupyterHub.
@@ -25,3 +27,24 @@ This is the default for a `.env` file in many IDEs but else you could folow one 
 If you update the environment (install packages etc) then update the record of it.
 
 `conda env export > env.yaml`
+
+### Running a deployment (for testing)
+
+`python -m jupyterhub -f path_to_deployment_config_file`
+
+i.e.
+
+`python -m jupyterhub -f ${workspaceFolder}/deployments/no_auth_spawn_aml_wtih_userspace/jupyterhub_config.py`
+
+
+Or here is a VS Code debug configuration
+
+```
+        {
+            "name": "JupyterHub no_auth_spawn_aml_wtih_userspace",
+            "type": "python",
+            "request": "launch",
+            "module": "jupyterhub",
+            "args": ["-f", "${workspaceFolder}/deployments/no_auth_spawn_aml_wtih_userspace/jupyterhub_config.py"]
+        }
+```

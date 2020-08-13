@@ -1,1 +1,5 @@
 .env
+**/jupyterhub-proxy.pid
+**/jupyterhub_cookie_secret
+**/jupyterhub-proxy.pid
+**/jupyterhub.sqlite

@@ -12,6 +12,9 @@ from tornado import gen
 from azureml.core import Workspace
 from azureml.core.compute import ComputeTarget, AmlCompute, ComputeInstance
 from azureml.exceptions import ComputeTargetException, ProjectSystemException
+import os
+
+from . import redirector
 
 
 class AMLSpawner(Spawner):
@@ -51,11 +54,12 @@ class AMLSpawner(Spawner):
         super().__init__(*args, **kwargs)
 
         # Fix this for now.
-        self.resource_group_name = "spawned_AMLs"
+        self.resource_group_name = os.environ.get('RESOURCE_GROUP')
 
         self.workspace = None
         self.compute_instance = None
         self._application_urls = None
+        self.redirect_server = None
 
         # XXX: really??
         self._authenticate()
@@ -94,7 +98,7 @@ class AMLSpawner(Spawner):
 
     # @run_on_executor
     def _poll_compute_setup(self):
-        compute_instance_status = self.compute_instance.status
+        compute_instance_status = self.compute_instance.get_status()
         state = compute_instance_status.state
         errors = compute_instance_status.errors
         return state, errors
@@ -125,7 +129,9 @@ class AMLSpawner(Spawner):
             self.compute_instance = ComputeTarget(workspace=self.workspace,
                                                   name=self.compute_instance_name)
         except ComputeTargetException:
-            instance_config = ComputeInstance.provisioning_configuration(vm_size="Standard_D2_v2")
+            instance_config = ComputeInstance.provisioning_configuration(vm_size="Standard_DS1_v2",
+                                                                         ssh_public_access=True,
+                                                                         admin_user_ssh_public_key=os.environ.get('SSH_PUB_KEY'))
             self.compute_instance = ComputeTarget.create(self.workspace,
                                                          self.compute_instance_name,
                                                          instance_config)
@@ -152,7 +158,17 @@ class AMLSpawner(Spawner):
                 break
             time.sleep(2)
 
+    def _stop_redirect(self):
+        if self.redirect_server:
+            try:
+                self.redirect_server.stop()
+                self.redirect_server = None
+            except Exception as e:
+                print(e)
+                raise
+
     # @run_on_executor
+
     def _set_up_resources(self):
         """Both of these methods are blocking, so try and async them as a pair."""
         self._set_up_workspace()
@@ -163,6 +179,7 @@ class AMLSpawner(Spawner):
     def _tear_down_resources(self):
         """This method blocks, so try and async it and pass back to a checker."""
         self._stop_compute_instance()
+        self._stop_redirect()
 
     def get_url(self):
         """An AzureML compute instance knows how to get its JupyterLab instance URL, so expose it."""
@@ -177,7 +194,14 @@ class AMLSpawner(Spawner):
         target_state = "running"
         self._wait_for_target_state(target_state)
 
-        return self.application_urls["Jupyter Lab"]
+        url = self.application_urls["Jupyter Lab"]
+        route = redirector.get_existing_redirect(url)
+        if not route:
+            self.redirect_server = redirector.RedirectServer(url)
+            self.redirect_server.start()
+            route = self.redirect_server.route
+
+        return route
         # self.port = ""  # Hacky McHackface.
         # return (self.ip, self.port)
 
@@ -185,6 +209,8 @@ class AMLSpawner(Spawner):
     def stop(self, now=False):
         """Stop and terminate all spawned AzureML resources. Must be a coroutine."""
         self._tear_down_resources()
+
+        self._stop_redirect()
 
         if not now:
             target_state = "stopped"
