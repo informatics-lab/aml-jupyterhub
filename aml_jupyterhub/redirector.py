@@ -1,18 +1,7 @@
 import time
 import http.server
 import socketserver
-import threading
-
-TAKEN_PORTS = []
-START_PORT = 9001
-REDIRECTS = {}
-
-# with thanks https://gist.github.com/shreddd/b7991ab491384e3c3331
-
-
-def get_existing_redirect(url):
-    port = REDIRECTS.get(url, None)
-    return port if ("0.0.0.0", port) else None
+import multiprocessing
 
 
 def redirect_handler_factory(url):
@@ -36,25 +25,39 @@ def _create_server(url, port):
 
 
 class RedirectServer:
-    # A simple
+    _start_port = 9001
+    _redirects = {}
+
+    @classmethod
+    def get_existing_redirect(cls, url):
+        port = cls._redirects.get('port')
+        return port if ("0.0.0.0", port) else None
+
+    @classmethod
+    def _get_free_port(cls):
+        port = cls._start_port
+        taken = list(cls._redirects.values())
+        while port in taken:
+            port += 1
+        return port
+
     def __init__(self, redirect_to_url):
         self.url = redirect_to_url
         super().__init__()
 
     def start(self):
-        global TAKEN_PORTS
-        port = START_PORT
-        while port in TAKEN_PORTS:
-            port += 1
-        TAKEN_PORTS += [port]
-        self.port = port
-        self.server_thread = threading.Thread(target=_create_server, args=[self.url, port], daemon=True)
-        self.server_thread.start()
+
+        print('start')
+        self.port = RedirectServer._get_free_port()
+        self.server_process = multiprocessing.Process(target=_create_server, args=[self.url, self.port], daemon=True)
+        self.server_process.start()
+        RedirectServer._redirects[self.url] = self.port
 
     def stop(self):
         try:
-            self.server_thread.stop()
-            TAKEN_PORTS.remove(self.port)
+            self.server_process.terminate()
+            del RedirectServer._redirects[self.url]
+
         except Exception as e:
             print(e)
             raise e
@@ -65,9 +68,16 @@ class RedirectServer:
         return ("0.0.0.0", self.port)
 
 
-# rs = RedirectServer('https://google.com', 'theo')
+# print('go')
+# rs = RedirectServer('https://google.com')
 # rs.start()
-# print(rs.port, rs.url, rs.server_thread)
+# print(rs.port, rs.url, rs.server_process)
+# print(RedirectServer._redirects)
+# time.sleep(5)
+# print(RedirectServer._redirects)
+# rs.stop()
+# time.sleep(10)
+# print(RedirectServer._redirects)
 
-# time.sleep(15)
+
 # print('no longer sleepy, everything should die...')

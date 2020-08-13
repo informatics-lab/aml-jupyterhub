@@ -183,7 +183,7 @@ class AMLSpawner(Spawner):
         self._wait_for_target_state(target_state)
 
         url = self.application_urls["Jupyter Lab"]
-        route = redirector.get_existing_redirect(url)
+        route = redirector.RedirectServer.get_existing_redirect(url)
         if not route:
             self.redirect_server = redirector.RedirectServer(url)
             self.redirect_server.start()
