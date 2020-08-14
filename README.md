@@ -41,10 +41,10 @@ Or here is a VS Code debug configuration
 
 ```
         {
-            "name": "JupyterHub no_auth_spawn_aml_wtih_userspace",
+            "name": "JupyterHub no_auth_spawn_aml",
             "type": "python",
             "request": "launch",
             "module": "jupyterhub",
-            "args": ["-f", "${workspaceFolder}/deployments/no_auth_spawn_aml_wtih_userspace/jupyterhub_config.py"]
+            "args": ["-f", "${workspaceFolder}/deployments/no_auth_spawn_on_aml/jupyterhub_config.py"]
         }
 ```
