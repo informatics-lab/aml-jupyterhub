@@ -66,18 +66,3 @@ class RedirectServer:
     @property
     def route(self):
         return ("0.0.0.0", self.port)
-
-
-# print('go')
-# rs = RedirectServer('https://google.com')
-# rs.start()
-# print(rs.port, rs.url, rs.server_process)
-# print(RedirectServer._redirects)
-# time.sleep(5)
-# print(RedirectServer._redirects)
-# rs.stop()
-# time.sleep(10)
-# print(RedirectServer._redirects)
-
-
-# print('no longer sleepy, everything should die...')
