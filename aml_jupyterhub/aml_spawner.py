@@ -3,7 +3,7 @@
 from concurrent.futures import ThreadPoolExecutor
 import os
 import time
-from traitlets import Unicode, Integer, default
+from traitlets import Unicode, Integer, default, Bool
 
 from jupyterhub.spawner import Spawner
 
@@ -16,6 +16,7 @@ from azureml.exceptions import ComputeTargetException, ProjectSystemException
 import os
 
 from . import redirector
+from . import files
 
 
 class AMLSpawner(Spawner):
@@ -43,6 +44,27 @@ class AMLSpawner(Spawner):
         Callers of spawner.start will assume that startup has failed if it takes longer than this.
         start should return when the server process is started and its location is known.
         """)
+
+    mount_userspace = Bool(
+        False,
+        config=True,
+        help="""
+        Whether or not to create (if not exists) and mount an Azure File Share to store user data
+        than can persist between VMs and accross Azure ML workspaces.
+        """
+    )
+
+    mount_userspace_location = Unicode(
+        "~/userfiles",
+        config=True,
+        help="""
+        Were to mount the users userspace files if `mount_userspace` is `True`.
+        """
+    )
+
+    options_from_form = {
+        'USername': ['']
+    }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -96,6 +118,11 @@ class AMLSpawner(Spawner):
         errors = compute_instance_status.errors
         return state, errors
 
+    def _mount_userspace(self):
+        user = {"username": 'theo.mccaie@informaticslab.co.uk'}
+        files.create_datastore_and_set_for_userspace_if_not_exists(self.workspace, user)
+        files.mount_user_ds_on_ci(self.compute_instance, user, self.mount_userspace_location)
+
     def _set_up_workspace(self):
         # Verify that the workspace does not already exist.
         try:
@@ -141,6 +168,7 @@ class AMLSpawner(Spawner):
     def _stop_compute_instance(self):
         try:
             self.compute_instance.stop()
+
         except ComputeTargetException as e:
             self.log.warning(e.message)
 
@@ -181,6 +209,9 @@ class AMLSpawner(Spawner):
 
         target_state = "running"
         self._wait_for_target_state(target_state)
+
+        if self.mount_userspace:
+            self._mount_userspace()
 
         url = self.application_urls["Jupyter Lab"]
         route = redirector.RedirectServer.get_existing_redirect(url)
