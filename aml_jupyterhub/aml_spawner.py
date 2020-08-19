@@ -8,7 +8,9 @@ from traitlets import Unicode, Integer, default, Bool
 from jupyterhub.spawner import Spawner
 
 from tornado.concurrent import run_on_executor
-from tornado import gen
+import asyncio
+
+from async_generator import async_generator, yield_
 
 from azureml.core import Workspace
 from azureml.core.compute import ComputeTarget, AmlCompute, ComputeInstance
@@ -62,9 +64,7 @@ class AMLSpawner(Spawner):
         """
     )
 
-    options_from_form = {
-        'USername': ['']
-    }
+    _events = None
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -79,6 +79,16 @@ class AMLSpawner(Spawner):
 
         # XXX: this can be done better.
         self._authenticate()
+
+    def _start_recording_events(self):
+        self._events = []
+
+    def _stop_recording_events(self):
+        self._events = None
+
+    def _add_event(self, msg, progress):
+        if self._events is not None:
+            self._event.append((msg, progress))
 
     def _authenticate(self):
         """
@@ -118,10 +128,10 @@ class AMLSpawner(Spawner):
         errors = compute_instance_status.errors
         return state, errors
 
-    def _mount_userspace(self):
+    async def _mount_userspace(self):
         user = {"username": 'theo.mccaie@informaticslab.co.uk'}
-        files.create_datastore_and_set_for_userspace_if_not_exists(self.workspace, user)
-        files.mount_user_ds_on_ci(self.compute_instance, user, self.mount_userspace_location)
+        files.create_user_file_share_if_not_exists(user)
+        await files.mount_user_ds_on_ci(self.compute_instance, user, self.mount_userspace_location)
 
     def _set_up_workspace(self):
         # Verify that the workspace does not already exist.
@@ -129,7 +139,9 @@ class AMLSpawner(Spawner):
             self.workspace = Workspace(self.subscription_id,
                                        self.resource_group_name,
                                        self.workspace_name)
+            self.log.info(f"Workspace {self.workspace_name} already exits.")
         except ProjectSystemException:
+            self.log.info(f"Creating workspace {self.workspace_name}.")
             self.workspace = Workspace.create(name=self.workspace_name,
                                               subscription_id=self.subscription_id,
                                               resource_group=self.resource_group_name,
@@ -137,6 +149,7 @@ class AMLSpawner(Spawner):
                                               location=self.location,
                                               sku='enterprise',
                                               show_output=False)
+            self.log.info(f"Workspace {self.workspace_name} created.")
 
     def _set_up_compute_instance(self):
         """
@@ -148,6 +161,8 @@ class AMLSpawner(Spawner):
         try:
             self.compute_instance = ComputeTarget(workspace=self.workspace,
                                                   name=self.compute_instance_name)
+
+            self.log.info(f"Compute instance {self.compute_instance_name} already exists.")
         except ComputeTargetException:
             instance_config = ComputeInstance.provisioning_configuration(vm_size="Standard_DS1_v2",
                                                                          ssh_public_access=True,
@@ -155,38 +170,45 @@ class AMLSpawner(Spawner):
             self.compute_instance = ComputeTarget.create(self.workspace,
                                                          self.compute_instance_name,
                                                          instance_config)
+            self.log.info(f"Created compute instance {self.compute_instance_name}.")
 
     def _start_compute_instance(self):
         stopped_state = "stopped"
         state, _ = self._poll_compute_setup()
+        self.log.info(f"Compute instance state is {state}.")
         if state.lower() == stopped_state:
             try:
+                self.log.info(f"Starting the compute instance.")
                 self.compute_instance.start()
             except ComputeTargetException as e:
-                self.log.warning(f"Warning: could not start compute resource:\n{e.message}")
+                self.log.warning(f"Could not start compute resource:\n{e.message}.")
 
     def _stop_compute_instance(self):
         try:
+            self.log.info(f"Stopping the compute instance.")
             self.compute_instance.stop()
 
         except ComputeTargetException as e:
             self.log.warning(e.message)
 
-    def _wait_for_target_state(self, target_state):
+    async def _wait_for_target_state(self, target_state):
         while True:
             state, _ = self._poll_compute_setup()
             if state.lower() == target_state:
+                self.log.info(f"Compute in target state {target_state}.")
                 break
             elif state.lower() in self._vm_bad_states:
+                self.log.info(f"Waiting for compute to be in state {target_state}. Current state is {state}.")
                 raise ComputeTargetException(f"Compute instance in failed state: {state!r}.")
-            time.sleep(2)
+            await asyncio.sleep(5)
 
     def _stop_redirect(self):
         if self.redirect_server:
+            self.log.info(f"Stopping the redirect server route: {self.redirect_server.route}.")
             self.redirect_server.stop()
             self.redirect_server = None
 
-    def _set_up_resources(self):
+    async def _set_up_resources(self):
         """Both of these methods are blocking, so try and async them as a pair."""
         self._set_up_workspace()
         self._set_up_compute_instance()
@@ -202,28 +224,47 @@ class AMLSpawner(Spawner):
         key = "Jupyter Lab"
         return None if self.application_urls is None else self.application_urls[key]
 
-    @gen.coroutine
-    def start(self):
+    @async_generator
+    async def progress(self):
+
+        import random
+        count = 0
+        action = ["Terminating", "Reconfiguring", "Dehydrating", "Rehydrating", "Activating", "Fermenting"]
+        the_object = ["dog", "cat", "hat", "rhino", "powers that be", "ISS", "the twin you didn't know you had"]
+        to = ["to", "in order to", "allowing the system to", "which will"]
+        reason = ["activate the compute", "power the machine learning", "deionize the static", "release the power", "initialise the cloud", "retrieve user data"]
+        while True:
+            msg = f"{random.choice(action)} the {random.choice(the_object)} {random.choice(to)} {random.choice(reason)}."
+            await yield_({
+                'progress': random.randint(1, 99),
+                'message':  msg
+            })
+            count += 1
+            if count >= 50:
+                break
+            await asyncio.sleep(5)
+
+    async def start(self):
         """Start (spawn) AzureML resouces."""
-        self._set_up_resources()
+        await self._set_up_resources()
 
         target_state = "running"
-        self._wait_for_target_state(target_state)
+        await self._wait_for_target_state(target_state)
 
         if self.mount_userspace:
-            self._mount_userspace()
+            await self._mount_userspace()
 
         url = self.application_urls["Jupyter Lab"]
         route = redirector.RedirectServer.get_existing_redirect(url)
         if not route:
             self.redirect_server = redirector.RedirectServer(url)
             self.redirect_server.start()
+            await asyncio.sleep(1)  # not sure this is need but did occasionally get bug where proxy didn't seem to have started fast enough so put in in as a just in case.
             route = self.redirect_server.route
 
         return route
 
-    @gen.coroutine
-    def stop(self, now=False):
+    async def stop(self, now=False):
         """Stop and terminate all spawned AzureML resources."""
         self._tear_down_resources()
 
@@ -231,10 +272,9 @@ class AMLSpawner(Spawner):
 
         if not now:
             target_state = "stopped"
-            self._wait_for_target_state(target_state)
+            await self._wait_for_target_state(target_state)
 
-    @gen.coroutine
-    def poll(self):
+    async def poll(self):
         """
         Healthcheck of spawned AzureML resources.
 
