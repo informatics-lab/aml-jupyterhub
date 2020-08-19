@@ -1,0 +1,58 @@
+logLevel = "DEBUG"
+
+
+defaultEntryPoints = ["http", "https"]
+
+
+[api]
+    dashboard = true
+    entrypoint = "auth_api"
+
+
+[entryPoints]
+    [entryPoints.auth_api]
+        address = ":8099"
+
+        [entryPoints.auth_api.auth.basic]
+            users = ["apiguy:"]
+
+    [entryPoint.web]
+        address = ":80"
+
+    [entryPoints.http]
+        address = ":8000"
+
+        [entryPoints.http.redirect]
+            entryPoint = "https"
+
+    [entryPoints.https]
+        address = ":443"
+
+        [entryPoints.https.tls]
+
+
+[certificatesResolvers.myresolver.acme]
+
+    [certificatesResolvers.myresolver.acme.tlsChallenge]
+
+    # [certificatesResolvers.myresolver.acme.httpChallenge]
+    #     entryPoint = "web"
+
+
+[acme]
+    email = ""
+    storage = "../config/acme.json"
+    # caServer = "https://acme-staging-v02.api.letsencrypt.org/directory"
+
+    # onDemand = true
+    entryPoint = "https"
+
+    [acme.tlsChallenge]
+
+    [[acme.domains]]
+        main = "panamel-v2.westeurope.cloudapp.azure.com"
+
+
+[file]
+    filename = "/home/azureuser/aml_spawner/rules.toml"
+    watch = true
