@@ -16,6 +16,7 @@ from azureml.core import Workspace
 from azureml.core.compute import ComputeTarget, AmlCompute, ComputeInstance
 from azureml.exceptions import ComputeTargetException, ProjectSystemException
 import os
+import datetime
 
 from . import redirector
 from . import files
@@ -34,6 +35,7 @@ class AMLSpawner(Spawner):
     _vm_transition_states = ["creating", "updating", "deleting"]
     _vm_stopped_states = ["stopping", "stopped"]
     _vm_bad_states = ["failed"]
+    _events = None
 
     ip = Unicode('0.0.0.0', config=True,
                  help="The IP Address of the spawned JupyterLab instance.")
@@ -64,8 +66,6 @@ class AMLSpawner(Spawner):
         """
     )
 
-    _events = None
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -88,7 +88,7 @@ class AMLSpawner(Spawner):
 
     def _add_event(self, msg, progress):
         if self._events is not None:
-            self._event.append((msg, progress))
+            self._events.append((msg, progress))
 
     def _authenticate(self):
         """
@@ -131,7 +131,9 @@ class AMLSpawner(Spawner):
     async def _mount_userspace(self):
         user = {"username": 'theo.mccaie@informaticslab.co.uk'}
         files.create_user_file_share_if_not_exists(user)
+        self._add_event(f"Mounting user files...", 75)
         await files.mount_user_ds_on_ci(self.compute_instance, user, self.mount_userspace_location)
+        self._add_event(f"Mounted user files.", 90)
 
     def _set_up_workspace(self):
         # Verify that the workspace does not already exist.
@@ -140,8 +142,10 @@ class AMLSpawner(Spawner):
                                        self.resource_group_name,
                                        self.workspace_name)
             self.log.info(f"Workspace {self.workspace_name} already exits.")
+            self._add_event(f"Workspace {self.workspace_name} already exits.", 10)
         except ProjectSystemException:
             self.log.info(f"Creating workspace {self.workspace_name}.")
+            self._add_event(f"Creating workspace {self.workspace_name}", 1)
             self.workspace = Workspace.create(name=self.workspace_name,
                                               subscription_id=self.subscription_id,
                                               resource_group=self.resource_group_name,
@@ -150,6 +154,7 @@ class AMLSpawner(Spawner):
                                               sku='enterprise',
                                               show_output=False)
             self.log.info(f"Workspace {self.workspace_name} created.")
+            self._add_event(f"Workspace {self.workspace_name} created", 10)
 
     def _set_up_compute_instance(self):
         """
@@ -163,7 +168,9 @@ class AMLSpawner(Spawner):
                                                   name=self.compute_instance_name)
 
             self.log.info(f"Compute instance {self.compute_instance_name} already exists.")
+            self._add_event(f"Compute instance {self.compute_instance_name} already exists", 20)
         except ComputeTargetException:
+            self._add_event(f"Creating compute instance {self.compute_instance_name}", 15)
             instance_config = ComputeInstance.provisioning_configuration(vm_size="Standard_DS1_v2",
                                                                          ssh_public_access=True,
                                                                          admin_user_ssh_public_key=os.environ.get('SSH_PUB_KEY'))
@@ -171,14 +178,18 @@ class AMLSpawner(Spawner):
                                                          self.compute_instance_name,
                                                          instance_config)
             self.log.info(f"Created compute instance {self.compute_instance_name}.")
+            self._add_event(f"Created compute instance {self.compute_instance_name}.", 20)
 
     def _start_compute_instance(self):
         stopped_state = "stopped"
         state, _ = self._poll_compute_setup()
         self.log.info(f"Compute instance state is {state}.")
+        self._add_event(f"Compute instance in {state} state.", 20)
+
         if state.lower() == stopped_state:
             try:
                 self.log.info(f"Starting the compute instance.")
+                self._add_event("Starting the compute instance. This may take a short while...", 25)
                 self.compute_instance.start()
             except ComputeTargetException as e:
                 self.log.warning(f"Could not start compute resource:\n{e.message}.")
@@ -191,15 +202,28 @@ class AMLSpawner(Spawner):
         except ComputeTargetException as e:
             self.log.warning(e.message)
 
-    async def _wait_for_target_state(self, target_state):
+    async def _wait_for_target_state(self, target_state, progress_between=(30, 70), progress_in_seconds=240):
+        """ Wait for the compute instance to be in the target state. 
+
+        emit events reporting progress starting at `progress_between[0]` to `progress_between[1]` over `progress_in_seconds` seconds.
+        This is to give the use watching the progress bar the illusion of progress even if we don't really know how far we have progressed.
+        """
+        started_at = datetime.datetime.now()
         while True:
             state, _ = self._poll_compute_setup()
+            time_taken = datetime.datetime.now() - started_at
+            min_progress, max_progress = progress_between
+            progress = (min_progress + (max_progress - min_progress) * (time_taken.total_seconds()/progress_in_seconds))//1
+            progress = max_progress if progress > max_progress else progress
             if state.lower() == target_state:
                 self.log.info(f"Compute in target state {target_state}.")
+                self._add_event(f"Compute in target state '{target_state}'.", max_progress)
                 break
             elif state.lower() in self._vm_bad_states:
-                self.log.info(f"Waiting for compute to be in state {target_state}. Current state is {state}.")
+                self._add_event(f"Compute instance in failed state: {state!r}.", min_progress)
                 raise ComputeTargetException(f"Compute instance in failed state: {state!r}.")
+            else:
+                self._add_event(f"Compute in state '{state.lower()}' after {time_taken.total_seconds():.0f} seconds. Aiming for target state '{target_state}', this may take a short while", progress)
             await asyncio.sleep(5)
 
     def _stop_redirect(self):
@@ -226,43 +250,45 @@ class AMLSpawner(Spawner):
 
     @async_generator
     async def progress(self):
-
-        import random
-        count = 0
-        action = ["Terminating", "Reconfiguring", "Dehydrating", "Rehydrating", "Activating", "Fermenting"]
-        the_object = ["dog", "cat", "hat", "rhino", "powers that be", "ISS", "the twin you didn't know you had"]
-        to = ["to", "in order to", "allowing the system to", "which will"]
-        reason = ["activate the compute", "power the machine learning", "deionize the static", "release the power", "initialise the cloud", "retrieve user data"]
-        while True:
-            msg = f"{random.choice(action)} the {random.choice(the_object)} {random.choice(to)} {random.choice(reason)}."
-            await yield_({
-                'progress': random.randint(1, 99),
-                'message':  msg
-            })
-            count += 1
-            if count >= 50:
-                break
-            await asyncio.sleep(5)
+        while self._events is not None:
+            if len(self._events) > 0:
+                msg, progress = self._events.pop(0)
+                await yield_({
+                    'progress': progress,
+                    'message':  msg
+                })
+            await asyncio.sleep(3)
 
     async def start(self):
         """Start (spawn) AzureML resouces."""
-        await self._set_up_resources()
+        try:
+            self._start_recording_events()
+            self._add_event("Initializing...", 0)
+            await self._set_up_resources()
 
-        target_state = "running"
-        await self._wait_for_target_state(target_state)
+            target_state = "running"
+            await self._wait_for_target_state(target_state)
 
-        if self.mount_userspace:
-            await self._mount_userspace()
+            if self.mount_userspace:
+                await self._mount_userspace()
 
-        url = self.application_urls["Jupyter Lab"]
-        route = redirector.RedirectServer.get_existing_redirect(url)
-        if not route:
-            self.redirect_server = redirector.RedirectServer(url)
-            self.redirect_server.start()
-            await asyncio.sleep(1)  # not sure this is need but did occasionally get bug where proxy didn't seem to have started fast enough so put in in as a just in case.
-            route = self.redirect_server.route
+            url = self.application_urls["Jupyter Lab"]
+            route = redirector.RedirectServer.get_existing_redirect(url)
+            if route:
+                self._add_event(f"Existing route to compute instance found.", 95)
+            else:
+                self._add_event(f"Creating route to compute instance.", 91)
+                self.redirect_server = redirector.RedirectServer(url)
+                self.redirect_server.start()
+                await asyncio.sleep(1)  # not sure this is need but did occasionally get bug where proxy didn't seem to have started fast enough so put in in as a just in case.
+                route = self.redirect_server.route
+                self._add_event(f"Route to compute instance created.", 95)
 
-        return route
+            self._add_event(f"Set up complete. Prepare for redirect...", 100)
+
+            return route
+        finally:
+            self._stop_recording_events()
 
     async def stop(self, now=False):
         """Stop and terminate all spawned AzureML resources."""
