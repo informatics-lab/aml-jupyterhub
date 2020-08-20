@@ -13,6 +13,8 @@ Code work and experiments to integrate Azure Machine Learning with JupyterHub.
 ### Set up your environment vars
 copy `env.template` to `.env` and fill in.
 
+You will need a SAS token for the storage account. SAS tokens at File Share level seem unavailable.
+
 Ensure these variables are available when running.
 
 This is the default for a `.env` file in many IDEs but else you could folow one of the suggestions [here](https://gist.github.com/mihow/9c7f559807069a03e302605691f85572) such as `set -o allexport; source .env; set +o allexport`
@@ -48,3 +50,17 @@ Or here is a VS Code debug configuration
             "args": ["-f", "${workspaceFolder}/deployments/no_auth_spawn_on_aml/jupyterhub_config.py"]
         }
 ```
+
+## Config / options
+If you've not got a `jupyterhub_config.py` file generate with `jupyterhub --generate-config`.
+
+Then set the options:
+
+Use AZM spawner: 
+`c.JupyterHub.spawner_class = 'aml_jupyterhub.aml_spawner.AMLSpawner'`
+
+To attempt to mount a persistent users space available across AML workspaces us:
+`c.AMLSpawner.mount_userspace = True`
+
+To set the location to mount this use:
+`c.AMLSpawner.mount_userspace_location = "~/userfiles"`
