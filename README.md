@@ -51,7 +51,17 @@ Or here is a VS Code debug configuration
         }
 ```
 
-## Config / options
+## Azure AD
+
+If you have looked in you can revoke permission for the app (for testing or other reason) here [https://myapps.microsoft.com/](https://myapps.microsoft.com/)
+
+The app needs to be available on the web to use AAD OAuth for login. Using [ngrok](https://ngrok.com/) is the easiest way of doing this when running locally.
+You will need add the callback url to the AD record for the App in the AzureCLI (the format for this is in `deployments/azure_ad_auth_spawn_aml_with_userspaces/jupyterhub_config.py`). You will also have to add the `HOST` to the `.env` file, if using ngrok this will be something like `d04091ec4cc6.ngrok.io`.ma
+
+Currently whilst the app authenticates against Azure AD it isn't able yet to use the delegated permissions to act as that user to spin up resources.
+In practice this means When using Azure AD auth the spawner only works for the individual who's credentials are used in the `.env` file.
+
+## Config / options for the AML Spawner
 If you've not got a `jupyterhub_config.py` file generate with `jupyterhub --generate-config`.
 
 Then set the options:
