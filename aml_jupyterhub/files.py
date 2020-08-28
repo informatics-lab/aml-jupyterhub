@@ -43,21 +43,21 @@ def create_user_file_share_if_not_exists(user):
 
 def fileshare_name(user):
     # Hopefully their will be some unique id we can use to avoid collions.
-    slug = user['username'].split('@')[0].replace('.', '-')
+    slug = user.escaped_name
     return f"{slug}-homespace"
 
 
-async def mount_user_ds_on_ci(ci, user, mount_point):
+async def mount_user_ds_on_ci(ci, user, mount_point, ssh_private_key):
     HERE = os.path.join(os.path.dirname(__file__))
     ssh_port = ci.ssh_port
     ssh_host = f"azureuser@{ci.public_ip_address}"
     fileshare = fileshare_name(user)
-    copy_scripts_to_ci_cmd = ["scp", "-o", "StrictHostKeyChecking no", "-P", str(ssh_port), f"{HERE}/mount.sh", f"{ssh_host}:/tmp"]
-    chmod_scripts = ["ssh",  "-o", "StrictHostKeyChecking no", "-p", str(ssh_port), str(ssh_host), "chmod +x /tmp/mount.sh"]
-    run_mount_scripts_cmd = ["ssh", "-o", "StrictHostKeyChecking no", "-t", "-p",
+    copy_scripts_to_ci_cmd = ["scp", "-i", f"{ssh_private_key}", "-o", "StrictHostKeyChecking no", "-P", str(ssh_port), f"{HERE}/mount.sh", f"{ssh_host}:/tmp"]
+    chmod_scripts = ["ssh",  "-i", f"{ssh_private_key}", "-o", "StrictHostKeyChecking no", "-p", str(ssh_port), str(ssh_host), "chmod +x /tmp/mount.sh"]
+    run_mount_scripts_cmd = ["ssh", "-i", f"{ssh_private_key}", "-o", "StrictHostKeyChecking no", "-t", "-p",
                              str(ssh_port), str(ssh_host), f"""bash -l -c 'STORAGE_ACCOUNT_NAME={STORAGE_ACCOUNT_NAME} MOUNT_POINT={mount_point} SAS_TOKEN="{SAS_TOKEN}" FILE_SHARE_NAME={fileshare} /tmp/mount.sh'"""]
 
     for cmd in [copy_scripts_to_ci_cmd, chmod_scripts, run_mount_scripts_cmd]:
-        proc = await asyncio.create_subprocess_exec(cmd[0], *cmd[1:], stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+        proc = await asyncio.create_subprocess_exec(*cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
         stdout, stderr = await proc.communicate()
-        print(stdout, stderr)
+        print(stderr)

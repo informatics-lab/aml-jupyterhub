@@ -17,9 +17,15 @@ from azureml.core.compute import ComputeTarget, AmlCompute, ComputeInstance
 from azureml.exceptions import ComputeTargetException, ProjectSystemException
 import os
 import datetime
+import re
+import tempfile
 
 from . import redirector
 from . import files
+import base64
+
+URL_REGEX = re.compile(r'\bhttps://[^ ]*')
+CODE_REGEX = re.compile(r'\b[A-Z0-9]{9}\b')
 
 
 class AMLSpawner(Spawner):
@@ -36,12 +42,13 @@ class AMLSpawner(Spawner):
     _vm_stopped_states = ["stopping", "stopped"]
     _vm_bad_states = ["failed"]
     _events = None
+    _last_progress = 50
 
     ip = Unicode('0.0.0.0', config=True,
                  help="The IP Address of the spawned JupyterLab instance.")
 
     start_timeout = Integer(
-        360, config=True,
+        3600, config=True,
         help="""
         Timeout (in seconds) before giving up on starting of single-user server.
         This is the timeout for start to return, not the timeout for the server to respond.
@@ -76,9 +83,15 @@ class AMLSpawner(Spawner):
         self.compute_instance = None
         self._application_urls = None
         self.redirect_server = None
+        self._create_ssh_key()
 
         # XXX: this can be done better.
         self._authenticate()
+
+    def _create_ssh_key(self):
+        with tempfile.NamedTemporaryFile('wb', delete=False) as ssh_file:
+            ssh_file.write(base64.b64decode(os.environ['SSH_PRIVATE_KEY']))
+            self._ssh_private_key = ssh_file.name
 
     def _start_recording_events(self):
         self._events = []
@@ -86,9 +99,13 @@ class AMLSpawner(Spawner):
     def _stop_recording_events(self):
         self._events = None
 
-    def _add_event(self, msg, progress):
+    def _add_event(self, msg, progress=None):
         if self._events is not None:
+            if progress is None:
+                progress = self._last_progress
             self._events.append((msg, progress))
+            self.log.info(f"Event {msg}@{progress}%")
+            self._last_progress = progress
 
     def _authenticate(self):
         """
@@ -101,9 +118,9 @@ class AMLSpawner(Spawner):
         self.subscription_id = os.environ.get('SUBSCRIPTION_ID')
         self.location = os.environ.get('LOCATION')
         self.workspace_name = os.environ.get('SPAWN_TO_WORK_SPACE')
-        self.compute_instance_name = os.environ.get('SPAWN_COMPUTE_INSTANCE_NAME')
+        self.compute_instance_name = self.user.escaped_name + os.environ.get('SPAWN_COMPUTE_INSTANCE_SUFFIX')
 
-    @property
+    @ property
     def application_urls(self):
         if self._application_urls is None:
             if self.compute_instance is None:
@@ -113,7 +130,7 @@ class AMLSpawner(Spawner):
             self.application_urls = result
         return self._application_urls
 
-    @application_urls.setter
+    @ application_urls.setter
     def application_urls(self, value):
         self._application_urls = value
 
@@ -129,10 +146,9 @@ class AMLSpawner(Spawner):
         return state, errors
 
     async def _mount_userspace(self):
-        user = {"username": 'theo.mccaie@informaticslab.co.uk'}
-        files.create_user_file_share_if_not_exists(user)
+        files.create_user_file_share_if_not_exists(self.user)
         self._add_event(f"Mounting user files...", 75)
-        await files.mount_user_ds_on_ci(self.compute_instance, user, self.mount_userspace_location)
+        await files.mount_user_ds_on_ci(self.compute_instance, self.user, self.mount_userspace_location, self._ssh_private_key)
         self._add_event(f"Mounted user files.", 90)
 
     def _set_up_workspace(self):
@@ -203,7 +219,7 @@ class AMLSpawner(Spawner):
             self.log.warning(e.message)
 
     async def _wait_for_target_state(self, target_state, progress_between=(30, 70), progress_in_seconds=240):
-        """ Wait for the compute instance to be in the target state. 
+        """ Wait for the compute instance to be in the target state.
 
         emit events reporting progress starting at `progress_between[0]` to `progress_between[1]` over `progress_in_seconds` seconds.
         This is to give the use watching the progress bar the illusion of progress even if we don't really know how far we have progressed.
@@ -248,7 +264,7 @@ class AMLSpawner(Spawner):
         key = "Jupyter Lab"
         return None if self.application_urls is None else self.application_urls[key]
 
-    @async_generator
+    @ async_generator
     async def progress(self):
         while self._events is not None:
             if len(self._events) > 0:
@@ -257,13 +273,53 @@ class AMLSpawner(Spawner):
                     'progress': progress,
                     'message':  msg
                 })
-            await asyncio.sleep(3)
+            await asyncio.sleep(1)
+
+    async def _cli_login(self):
+
+        async def _capture_az_login_code_and_url(stream):
+            url = None
+            code = None
+            while True:
+                line = await stream.readline()
+                if line:
+                    output = line.decode('ascii')
+
+                    maybe_url = URL_REGEX.findall(output)
+                    if len(maybe_url) == 1:
+                        url = maybe_url[0]
+
+                    maybe_code = CODE_REGEX.findall(output)
+                    if len(maybe_code) == 1:
+                        code = maybe_code[0]
+
+                    if len(maybe_url) > 1 or len(maybe_code) > 1:
+                        raise RuntimeError(f"The output from the az login command had more than one url or code: {output}")
+
+                    if code and url:
+                        msg = f"**Please visit {url} and enter {code} to authenticate the spawner to act on your behalf.**"
+                        self._add_event(msg)
+                        self.log.info(msg)
+                        break
+                else:
+                    break
+
+        cmd = ["az", "login", "--use-device-code"]
+        proc = await asyncio.create_subprocess_exec(*cmd,
+                                                    stdout=asyncio.subprocess.PIPE,
+                                                    stderr=asyncio.subprocess.STDOUT)
+
+        await _capture_az_login_code_and_url(proc.stdout)
+        await proc.wait()
+        self._add_event("Login complete, thank you!", 5)
+        asyncio.sleep(1.5)  # This gives the progress bar a chance to notice, better user experience even if 1.5 seconds slower.
 
     async def start(self):
         """Start (spawn) AzureML resouces."""
         try:
             self._start_recording_events()
             self._add_event("Initializing...", 0)
+            await self._cli_login()
             await self._set_up_resources()
 
             target_state = "running"

@@ -94,6 +94,7 @@
 #    - default: jupyterhub.auth.PAMAuthenticator
 #    - dummy: jupyterhub.auth.DummyAuthenticator
 #    - pam: jupyterhub.auth.PAMAuthenticator
+import os
 c.JupyterHub.authenticator_class = 'dummyauthenticator.DummyAuthenticator'
 
 # The base URL of the entire application.
@@ -472,6 +473,10 @@ c.JupyterHub.spawner_class = 'aml_jupyterhub.aml_spawner.AMLSpawner'
 # Options for the AMLSpawner
 c.AMLSpawner.mount_userspace = True
 c.AMLSpawner.mount_userspace_location = "~/userfiles"
+
+# Custom templates from the aml_jupyterhub module
+t_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'aml_jupyterhub', 'templates'))
+c.JupyterHub.template_paths = [t_path]
 
 # Path to SSL certificate file for the public facing interface of the proxy
 #
