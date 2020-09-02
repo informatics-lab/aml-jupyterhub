@@ -11,7 +11,7 @@ from collections import namedtuple
 from azure.storage.fileshare import ShareFileClient
 from io import BytesIO
 import asyncio
-
+import re
 
 SUBSCRIPTION_ID = os.environ.get('SUBSCRIPTION_ID')
 STORAGE_ACCOUNT_CONN_STR = os.environ.get('STORAGE_ACCOUNT_CONN_STR')
@@ -45,6 +45,14 @@ def fileshare_name(user):
     # Hopefully their will be some unique id we can use to avoid collions.
     slug = user.escaped_name
     return f"{slug}-homespace"
+
+
+def fileshare_name(user):
+    slug = user.escaped_name
+    name = re.sub('[^-0-9a-zA-Z]+', '', slug)
+    if not re.match('[A-z]', name[0]):
+        name = 'A-' + name
+    return name[:23]
 
 
 async def mount_user_ds_on_ci(ci, user, mount_point, ssh_private_key):
