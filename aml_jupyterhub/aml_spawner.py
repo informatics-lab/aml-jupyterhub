@@ -107,6 +107,14 @@ class AMLSpawner(Spawner):
             self.log.info(f"Event {msg}@{progress}%")
             self._last_progress = progress
 
+    _VALID_MACHINE_NAME = re.compile(r"[A-z][-A-z0-9]{2,23}")
+
+    def _make_safe_for_compute_name(self, name):
+        name = re.sub('[^-0-9a-zA-Z]+', '', name)
+        if not re.match('[A-z]', name[0]):
+            name = 'A-' + name
+        return name[:23]
+
     def _authenticate(self):
         """
         Authenticate our user to Azure.
@@ -118,7 +126,7 @@ class AMLSpawner(Spawner):
         self.subscription_id = os.environ.get('SUBSCRIPTION_ID')
         self.location = os.environ.get('LOCATION')
         self.workspace_name = os.environ.get('SPAWN_TO_WORK_SPACE')
-        self.compute_instance_name = self.user.escaped_name + os.environ.get('SPAWN_COMPUTE_INSTANCE_SUFFIX')
+        self.compute_instance_name = self._make_safe_for_compute_name(self.user.escaped_name + os.environ.get('SPAWN_COMPUTE_INSTANCE_SUFFIX'))
 
     @ property
     def application_urls(self):

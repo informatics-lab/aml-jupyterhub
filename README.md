@@ -22,7 +22,7 @@ This is the default for a `.env` file in many IDEs but else you could folow one 
 
 ### Set up you conda environment
 
-`conda create --from-file env.yaml`
+`conda env create -f env.yaml`
 
 ### Up date the env
 
