@@ -398,17 +398,17 @@ class AMLSpawner(Spawner):
             result = 0
         return result
 
-    def get_state(self):
-        """Get the state of our spawned AzureML resources so that we can persist over restarts."""
-        state = super().get_state()
-        state["workspace_name"] = self.workspace_name
-        state["compute_instance_name"] = self.compute_instance_name
-        return state
+    # def get_state(self):
+    #     """Get the state of our spawned AzureML resources so that we can persist over restarts."""
+    #     state = super().get_state()
+    #     state["workspace_name"] = self.workspace_name
+    #     state["compute_instance_name"] = self.compute_instance_name
+    #     return state
 
-    def load_state(self, state):
-        """Load previously-defined state so that we can resume where we left off."""
-        super().load_state(state)
-        if "workspace_name" in state:
-            self.workspace_name = state["workspace_name"]
-        if "compute_instance_name" in state:
-            self.compute_instance_name = state["compute_instance_name"]
+    # def load_state(self, state):
+    #     """Load previously-defined state so that we can resume where we left off."""
+    #     super().load_state(state)
+    #     if "workspace_name" in state:
+    #         self.workspace_name = state["workspace_name"]
+    #     if "compute_instance_name" in state:
+    #         self.compute_instance_name = state["compute_instance_name"]
