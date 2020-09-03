@@ -21,7 +21,7 @@ import re
 import tempfile
 
 from . import redirector
-from . import files
+from .files import AzureUserFiles
 import base64
 
 URL_REGEX = re.compile(r'\bhttps://[^ ]*')
@@ -154,9 +154,10 @@ class AMLSpawner(Spawner):
         return state, errors
 
     async def _mount_userspace(self):
-        files.create_user_file_share_if_not_exists(self.user)
+        user_files = AzureUserFiles(self.user, self.log)
+        user_files.create_user_file_share_if_not_exists()
         self._add_event(f"Mounting user files...", 75)
-        await files.mount_user_ds_on_ci(self.compute_instance, self.user, self.mount_userspace_location, self._ssh_private_key)
+        await user_files.mount_user_ds_on_ci(self.compute_instance, self.mount_userspace_location, self._ssh_private_key)
         self._add_event(f"Mounted user files.", 90)
 
     def _set_up_workspace(self):
@@ -320,7 +321,7 @@ class AMLSpawner(Spawner):
         await _capture_az_login_code_and_url(proc.stdout)
         await proc.wait()
         self._add_event("Login complete, thank you!", 5)
-        asyncio.sleep(1.5)  # This gives the progress bar a chance to notice, better user experience even if 1.5 seconds slower.
+        await asyncio.sleep(1.5)  # This gives the progress bar a chance to notice, better user experience even if 1.5 seconds slower.
 
     async def start(self):
         """Start (spawn) AzureML resouces."""
