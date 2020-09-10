@@ -24,11 +24,13 @@ This is the default for a `.env` file in many IDEs but else you could folow one 
 
 `conda env create -f env.yaml`
 
-### Up date the env
+### Update the env
 
 If you update the environment (install packages etc) then update the record of it.
 
 `conda env export > env.yaml`
+and if necessary, edit the 'name' and 'prefix' fields in the resulting file to remove your local path.
+
 
 ### Running a deployment (for testing)
 
@@ -37,6 +39,8 @@ If you update the environment (install packages etc) then update the record of i
 i.e.
 
 `python -m jupyterhub -f ${workspaceFolder}/deployments/no_auth_spawn_aml_wtih_userspace/jupyterhub_config.py`
+
+(See below for instructions on how to create and modify a jupyterhub config file.)
 
 
 Or here is a VS Code debug configuration
@@ -53,20 +57,20 @@ Or here is a VS Code debug configuration
 
 ## Azure AD
 
-If you have looked in you can revoke permission for the app (for testing or other reason) here [https://myapps.microsoft.com/](https://myapps.microsoft.com/)
+You can find our app (in order to revoke permission for the app, for testing or other reasons) here [https://myapps.microsoft.com/](https://myapps.microsoft.com/)
 
 The app needs to be available on the web to use AAD OAuth for login. Using [ngrok](https://ngrok.com/) is the easiest way of doing this when running locally.
 You will need add the callback url to the AD record for the App in the AzureCLI (the format for this is in `deployments/azure_ad_auth_spawn_aml_with_userspaces/jupyterhub_config.py`). You will also have to add the `HOST` to the `.env` file, if using ngrok this will be something like `d04091ec4cc6.ngrok.io`.ma
 
 Currently whilst the app authenticates against Azure AD it isn't able yet to use the delegated permissions to act as that user to spin up resources.
-In practice this means When using Azure AD auth the spawner only works for the individual who's credentials are used in the `.env` file.
+In practice this means that when using Azure AD auth, the spawner only works for the individual whose credentials are used in the `.env` file.
 
 ## Config / options for the AML Spawner
 If you've not got a `jupyterhub_config.py` file generate with `jupyterhub --generate-config`.
 
 Then set the options:
 
-Use AZM spawner: 
+Use AZM spawner:
 `c.JupyterHub.spawner_class = 'aml_jupyterhub.aml_spawner.AMLSpawner'`
 
 To attempt to mount a persistent users space available across AML workspaces us:
