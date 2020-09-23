@@ -1,10 +1,15 @@
 """Create an AzureML Spawner for JupyterHub."""
 
-from concurrent.futures import ThreadPoolExecutor
 import os
 import time
-from traitlets import Unicode, Integer, default, Bool
+import datetime
+import re
+import tempfile
+import base64
 
+from concurrent.futures import ThreadPoolExecutor
+
+from traitlets import Unicode, Integer, default, Bool
 from jupyterhub.spawner import Spawner
 
 from tornado.concurrent import run_on_executor
@@ -15,14 +20,10 @@ from async_generator import async_generator, yield_
 from azureml.core import Workspace
 from azureml.core.compute import ComputeTarget, AmlCompute, ComputeInstance
 from azureml.exceptions import ComputeTargetException, ProjectSystemException
-import os
-import datetime
-import re
-import tempfile
+from azureml.core.authentication import InteractiveLoginAuthentication
 
 from . import redirector
 from .files import AzureUserFiles
-import base64
 
 URL_REGEX = re.compile(r'\bhttps://[^ ]*')
 CODE_REGEX = re.compile(r'\b[A-Z0-9]{9}\b')
@@ -123,6 +124,7 @@ class AMLSpawner(Spawner):
         TODO: figure out how to get an existing workspace for a user (like the AML login page.)
 
         """
+        self.tenant_id = os.environ.get("TENANT_ID")
         self.subscription_id = os.environ.get('SUBSCRIPTION_ID')
         self.location = os.environ.get('LOCATION')
         self.workspace_name = os.environ.get('SPAWN_TO_WORK_SPACE')
@@ -162,10 +164,12 @@ class AMLSpawner(Spawner):
 
     def _set_up_workspace(self):
         # Verify that the workspace does not already exist.
+        interactive_auth = InteractiveLoginAuthentication(tenant_id=self.tenant_id)
         try:
             self.workspace = Workspace(self.subscription_id,
                                        self.resource_group_name,
-                                       self.workspace_name)
+                                       self.workspace_name,
+                                       auth=interactive_auth)
             self.log.info(f"Workspace {self.workspace_name} already exits.")
             self._add_event(f"Workspace {self.workspace_name} already exits.", 10)
         except ProjectSystemException:
@@ -177,7 +181,8 @@ class AMLSpawner(Spawner):
                                               create_resource_group=False,
                                               location=self.location,
                                               sku='enterprise',
-                                              show_output=False)
+                                              show_output=False,
+                                              auth=interactive_auth)
             self.log.info(f"Workspace {self.workspace_name} created.")
             self._add_event(f"Workspace {self.workspace_name} created", 10)
 
@@ -312,7 +317,6 @@ class AMLSpawner(Spawner):
                         break
                 else:
                     break
-
         cmd = ["az", "login", "--use-device-code"]
         proc = await asyncio.create_subprocess_exec(*cmd,
                                                     stdout=asyncio.subprocess.PIPE,
