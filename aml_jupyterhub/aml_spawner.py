@@ -89,8 +89,13 @@ class AMLSpawner(Spawner):
         self._authenticate()
 
     def _create_ssh_key(self):
-        with tempfile.NamedTemporaryFile('wb', delete=False) as ssh_file:
-            ssh_file.write(base64.b64decode(os.environ['SSH_PRIVATE_KEY']))
+        if os.path.isfile(os.environ['SSH_PRIVATE_KEY']):
+            # SSH_PRIVATE_KEY=<path_to_private_ssh_key_file>
+            self._ssh_private_key = os.environ['SSH_PRIVATE_KEY']
+        else:
+            # SSH_PRIVATE_KEY=<base64_encoded_private_ssh_key>
+            with tempfile.NamedTemporaryFile('wb', delete=False) as ssh_file:
+                ssh_file.write(base64.b64decode(os.environ['SSH_PRIVATE_KEY']))
             self._ssh_private_key = ssh_file.name
 
     def _start_recording_events(self):
