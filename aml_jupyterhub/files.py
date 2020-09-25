@@ -12,12 +12,12 @@ from azure.storage.fileshare import ShareFileClient
 from io import BytesIO
 import asyncio
 import re
+import datetime
 
 SUBSCRIPTION_ID = os.environ.get('SUBSCRIPTION_ID')
 STORAGE_ACCOUNT_CONN_STR = os.environ.get('STORAGE_ACCOUNT_CONN_STR')
 STORAGE_ACCOUNT_KEY = STORAGE_ACCOUNT_CONN_STR.split("AccountKey=")[1].split(';')[0]
 STORAGE_ACCOUNT_NAME = os.environ.get('STORAGE_ACCOUNT_NAME')
-SAS_TOKEN = os.environ.get('SAS_TOKEN')
 
 
 class AzureUserFiles():
@@ -56,9 +56,23 @@ class AzureUserFiles():
         if not re.match('[A-z]', name[0]):
             name = 'A-' + name
         return name[:23]
+    
+    async def generate_sas_token(self):
+        self.log.info("Generating SAS token...")
+        exp_date = datetime.datetime.now() + datetime.timedelta(minutes=10)
+        cmd = ["az", "storage", "account", "generate-sas", "--permissions=cdlruwap",
+                    f"--expiry={exp_date.strftime('%Y-%m-%dT%H:%MZ')}",
+                    "--resource-types=sco", "--services=qbft",
+                    f"--account-name={STORAGE_ACCOUNT_NAME}"]
+        self.log.info(f"Running command: {' '.join(cmd)}")
+        proc = await asyncio.create_subprocess_exec(*cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+        stdout, stderr = await proc.communicate()
+        self.log.info(f"Std err:{stderr}")
+        return eval(stdout.decode('utf-8'))
 
     async def mount_user_ds_on_ci(self, ci, mount_point, ssh_private_key):
         HERE = os.path.join(os.path.dirname(__file__))
+        SAS_TOKEN = await self.generate_sas_token()
         ssh_port = ci.ssh_port
         ssh_host = f"azureuser@{ci.public_ip_address}"
         fileshare = self.fileshare_name()
