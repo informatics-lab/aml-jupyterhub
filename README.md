@@ -20,11 +20,11 @@ Ensure these variables are available when running.
 This is the default for a `.env` file in many IDEs but else you could folow one of the suggestions [here](https://gist.github.com/mihow/9c7f559807069a03e302605691f85572) such as `set -o allexport; source .env; set +o allexport`
 
 
-### Set up you conda environment
+### Set up your conda environment
 
 `conda env create -f env.yaml`
 
-### Update the env
+### Update the conda env
 
 If you update the environment (install packages etc) then update the record of it.
 
@@ -92,11 +92,11 @@ If you've not got a `jupyterhub_config.py` file generate with `jupyterhub --gene
 
 Then set the options:
 
-Use AZM spawner:
+Use AML spawner:
 `c.JupyterHub.spawner_class = 'aml_jupyterhub.aml_spawner.AMLSpawner'`
 
-To attempt to mount a persistent users space available across AML workspaces us:
+To attempt to mount a persistent users space available across AML workspaces, use:
 `c.AMLSpawner.mount_userspace = True`
 
-To set the location to mount this use:
+To set the location on the compute instance on which to mount this, use:
 `c.AMLSpawner.mount_userspace_location = "~/userfiles"`
