@@ -71,18 +71,18 @@ The config file `deployments/azure_ad_auth_spawn_on_aml` allows users to login t
 
 #### Test setup
 
-A simple way to accomplish 2) is to use [ngrok](https://ngrok.com/).  If you follow the [instructions](https://dashboard.ngrok.com/get-started/setup) to download and unzip the free ngrok executable, you can then do
+A simple way to accomplish 2) is to use [ngrok](https://ngrok.com/).  If you follow the [instructions](https://dashboard.ngrok.com/get-started/setup) to download and unzip the free ngrok executable, you can then do:
 ```
 ./ngrok http 8000
 ```
 and it will provide a "Forwarding" URL that looks like `https://<some_hex_string>.ngrok.io` from which you (or anyone else) can access whatever is running on `localhost:8000` (which will be our Jupyterhub spawner).
+You can then add this forwarding URL, minus the "https://" to the `HOST` value in the `.env` file.
 
-You can find our app (in order to revoke permission for the app, for testing or other reasons) here [https://myapps.microsoft.com/](https://myapps.microsoft.com/)
+Once this is setup, you can register the Jupyterhub spawner as an Application in the Azure portal [https://portal.azure.com].  Search for the service "Azure Active Directory", then go to "App registrations" on the left sidebar, click on "New Registration", and come up with a descriptive name.  You will then get a `client_id` which you can enter as the `AAD_CLIENT_ID` in `.env`.
+Then if you click on "Keys and Secrets" in the left sidebar, you can create a client secret to copy/paste into `AAD_CLIENT_SECRET` in `.env`.
+Finally, you need to add the callback URL.  Click on "Authentication" in the left sidebar, then add a "Redirect URI", which will be the ngrok URL described above plus `/hub/oauth_callback`, i.e. something like `https://79604adc24f6.ngrok.io/hub/oauth_callback`.
 
-The app needs to be available on the web to use AAD OAuth for login. Using [ngrok](https://ngrok.com/) is the easiest way of doing this when running locally.
-You will need add the callback url to the AD record for the App in the AzureCLI (the format for this is in `deployments/azure_ad_auth_spawn_aml_with_userspaces/jupyterhub_config.py`). You will also have to add the `HOST` to the `.env` file, if using ngrok this will be something like `d04091ec4cc6.ngrok.io`.ma
-
-
+Later on, if you want to see your app (e.g. to revoke permissions, or update the callback URL), you can find it here [https://myapps.microsoft.com/](https://myapps.microsoft.com/).  
 
 Currently whilst the app authenticates against Azure AD it isn't able yet to use the delegated permissions to act as that user to spin up resources.
 In practice this means that when using Azure AD auth, the spawner only works for the individual whose credentials are used in the `.env` file.
