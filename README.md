@@ -10,6 +10,19 @@ Code work and experiments to integrate Azure Machine Learning with JupyterHub.
 
 ## How to develop
 
+### Create a Service Principal
+Log in with Azure CLI, then create a SP.
+```
+az ad sp create-for-rbac --name <sp_name> --skip-assignment --sdk-auth > local-sp.json
+```
+Use the values of "clientId", "clientSecret", "subscriptionId", "tenantId" to fill the `.env` file and export the variables (a sdescribed below).
+
+Provide RBAC Contributor role to the SP for the entire resource group (to be changed in the future!).
+```
+az role assignment create --assignee $AAD_CLIENT_ID --role "Contributor” \
+    --scope "/subscriptions/$AAD_SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP"
+```
+
 ### Set up your environment vars
 copy `env.template` to `.env` and fill in.
 

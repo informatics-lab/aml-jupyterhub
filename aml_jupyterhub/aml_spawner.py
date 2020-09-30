@@ -13,6 +13,7 @@ import asyncio
 from async_generator import async_generator, yield_
 
 from azureml.core import Workspace
+from azureml.core.authentication import ServicePrincipalAuthentication
 from azureml.core.compute import ComputeTarget, AmlCompute, ComputeInstance
 from azureml.exceptions import ComputeTargetException, ProjectSystemException
 import os
@@ -132,6 +133,9 @@ class AMLSpawner(Spawner):
         self.location = os.environ.get('LOCATION')
         self.workspace_name = os.environ.get('SPAWN_TO_WORK_SPACE')
         self.compute_instance_name = self._make_safe_for_compute_name(self.user.escaped_name + os.environ.get('SPAWN_COMPUTE_INSTANCE_SUFFIX'))
+        self.tenant_id = os.environ["AAD_TENANT_ID"]
+        self.client_id = os.environ["AAD_CLIENT_ID"]
+        self.client_secret = os.environ["AAD_CLIENT_SECRET"]
 
     @ property
     def application_urls(self):
@@ -168,9 +172,10 @@ class AMLSpawner(Spawner):
     def _set_up_workspace(self):
         # Verify that the workspace does not already exist.
         try:
-            self.workspace = Workspace(self.subscription_id,
-                                       self.resource_group_name,
-                                       self.workspace_name)
+            self.workspace = Workspace(workspace_name=self.workspace_name,
+                                       subscription_id=self.subscription_id,
+                                       resource_group=self.resource_group_name,
+                                       auth=self.sp_auth)
             self.log.info(f"Workspace {self.workspace_name} already exits.")
             self._add_event(f"Workspace {self.workspace_name} already exits.", 10)
         except ProjectSystemException:
@@ -180,6 +185,7 @@ class AMLSpawner(Spawner):
                                               subscription_id=self.subscription_id,
                                               resource_group=self.resource_group_name,
                                               create_resource_group=False,
+                                              auth=self.sp_auth,
                                               location=self.location,
                                               sku='enterprise',
                                               show_output=False)
@@ -333,7 +339,11 @@ class AMLSpawner(Spawner):
         try:
             self._start_recording_events()
             self._add_event("Initializing...", 0)
-            await self._cli_login()
+            # await self._cli_login()
+            self.sp_auth = ServicePrincipalAuthentication(tenant_id=self.tenant_id,
+                                                      service_principal_id=self.client_id,
+                                                      service_principal_password=self.client_secret)
+
             await self._set_up_resources()
 
             target_state = "running"
