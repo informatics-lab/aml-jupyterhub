@@ -1,14 +1,10 @@
 # Configuration file for jupyterhub.
 
+# Use `jupyterhub --generate-config` to generate a default config file
+
+# Class for authenticating users.
 
 import os
-from oauthenticator.azuread import AzureAdOAuthenticator
-
-
-"""
-Custom Authenticator to use Azure AD with JupyterHub
-"""
-
 import json
 import jwt
 import os
@@ -19,12 +15,17 @@ from tornado.log import app_log
 from tornado.httpclient import HTTPRequest, AsyncHTTPClient
 
 from jupyterhub.auth import LocalAuthenticator
-
 from traitlets import Unicode, default
+from oauthenticator.azuread import AzureAdOAuthenticator
 
-## This class is just a copy of the AzureAdOAuthenticator
-## It's only here for easier debugging whilst I try figure out how to use the deligated permissions to act as the signed in user.
 class AzureAdOAuthenticatorProxy(AzureAdOAuthenticator):
+    """
+    Custom Authenticator to use Azure AD with JupyterHub.
+    This class is just a copy of the AzureAdOAuthenticator
+    It's only here for easier debugging whilst I try figure out
+    how to use the deligated permissions to act as the signed in user.
+    """
+
     login_service = Unicode(
         os.environ.get('LOGIN_SERVICE', 'Azure AD'),
         config=True,
@@ -107,3 +108,11 @@ c.AzureAdOAuthenticator.tenant_id = os.environ.get('AAD_TENANT_ID')
 c.AzureAdOAuthenticator.oauth_callback_url = "https://{}/hub/oauth_callback".format(os.environ['HOST'])
 c.AzureAdOAuthenticator.client_id = os.environ['AAD_CLIENT_ID']
 c.AzureAdOAuthenticator.client_secret = os.environ['AAD_CLIENT_SECRET']
+
+
+# The class to use for spawning single-user servers.
+c.JupyterHub.spawner_class = 'aml_jupyterhub.aml_spawner.AMLSpawner'
+
+# Options for the AMLSpawner
+c.AMLSpawner.mount_userspace = True
+c.AMLSpawner.mount_userspace_location = "~/userfiles"
