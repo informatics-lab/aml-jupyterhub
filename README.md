@@ -13,11 +13,12 @@ Code work and experiments to integrate Azure Machine Learning with JupyterHub.
 ### Set up your environment vars
 copy `env.template` to `.env` and fill in.
 
-You will need a SAS token for the storage account. SAS tokens at File Share level seem unavailable.
-
-Ensure these variables are available when running.
-
-This is the default for a `.env` file in many IDEs but else you could folow one of the suggestions [here](https://gist.github.com/mihow/9c7f559807069a03e302605691f85572) such as `set -o allexport; source .env; set +o allexport`
+Depending on what IDE you're using, setting these variables in a file `.env` file may be the default way to have them available.  
+However, if you're running from the command line, run the following command to set your environment variables from this file:
+```
+set -o allexport; source .env; set +o allexport
+```
+See [here](environmentvars.md) for an explanation of the parameters, and where to find them.
 
 
 ### Set up your conda environment
