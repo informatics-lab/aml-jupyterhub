@@ -22,6 +22,9 @@ class AzureAdOAuthenticatorProxy(AzureAdOAuthenticator):
     This class is just a copy of the AzureAdOAuthenticator
     It's only here for easier debugging whilst I try figure out
     how to use the deligated permissions to act as the signed in user.
+
+    Note:
+    - authenticate() returns a dict (["user"]["oid"] = user's object ID).
     """
 
     login_service = Unicode(
@@ -91,7 +94,6 @@ class AzureAdOAuthenticatorProxy(AzureAdOAuthenticator):
         auth_state['access_token'] = access_token
         # results in a decoded JWT for the user data
         auth_state['user'] = decoded
-
         return userdict
 
 
@@ -101,11 +103,11 @@ c.JupyterHub.authenticator_class = AzureAdOAuthenticatorProxy
 
 c.Application.log_level = 'DEBUG'
 
-c.AzureAdOAuthenticator.tenant_id = os.environ.get('AAD_TENANT_ID')
-
-c.AzureAdOAuthenticator.oauth_callback_url = "https://{os.environ['HOST']}/hub/oauth_callback"
+c.AzureAdOAuthenticator.enable_auth_state = True
+c.AzureAdOAuthenticator.oauth_callback_url = f"https://{os.environ['HOST']}/hub/oauth_callback"
 c.AzureAdOAuthenticator.client_id = os.environ['AAD_CLIENT_ID']
 c.AzureAdOAuthenticator.client_secret = os.environ['AAD_CLIENT_SECRET']
+c.AzureAdOAuthenticator.tenant_id = os.environ.get('AAD_TENANT_ID') # Not necessary
 
 # The class to use for spawning single-user servers.
 c.JupyterHub.spawner_class = 'aml_jupyterhub.aml_spawner.AMLSpawner'

@@ -6,6 +6,7 @@ import time
 from traitlets import Unicode, Integer, default, Bool
 
 from jupyterhub.spawner import Spawner
+from jupyterhub.crypto import decrypt
 
 from tornado.concurrent import run_on_executor
 import asyncio
@@ -339,6 +340,12 @@ class AMLSpawner(Spawner):
         try:
             self._start_recording_events()
             self._add_event("Initializing...", 0)
+            
+            auth_state = await decrypt(self.user.encrypted_auth_state)
+            self.environment['USER_OID'] = auth_state["user"]["oid"]
+
+            self._add_event("Spawner env", self.get_env())
+
             # await self._cli_login()
             self.sp_auth = ServicePrincipalAuthentication(tenant_id=self.tenant_id,
                                                       service_principal_id=self.client_id,
