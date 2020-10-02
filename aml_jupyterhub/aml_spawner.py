@@ -14,7 +14,8 @@ import asyncio
 from async_generator import async_generator, yield_
 
 from azureml.core import Workspace
-from azureml.core.authentication import ServicePrincipalAuthentication
+from azureml.core.authentication import ServicePrincipalAuthentication # NEEDED?
+from azure.common.credentials import ServicePrincipalCredentials # NEEDED?
 from azureml.core.compute import ComputeTarget, AmlCompute, ComputeInstance
 from azureml.exceptions import ComputeTargetException, ProjectSystemException
 import os
@@ -193,6 +194,55 @@ class AMLSpawner(Spawner):
             self.log.info(f"Workspace {self.workspace_name} created.")
             self._add_event(f"Workspace {self.workspace_name} created", 10)
 
+    def _deploy_compute_instance(self):
+        from azure.mgmt.resource import ResourceManagementClient
+        from azure.mgmt.resource.resources.models import DeploymentMode
+        from azure.mgmt.resource.resources.models import Deployment
+        from azure.mgmt.resource.resources.models import DeploymentProperties
+        import json
+
+        self.client = ResourceManagementClient(self.credentials, self.subscription_id)
+        template_path = os.path.join(os.path.dirname(
+            __file__), 'templates', 'CItemplate.json')
+        with open(template_path, 'r') as template_file_fd:
+            template = json.load(template_file_fd)
+
+        self.log.info(f"Deploying template at {template_path}.")
+
+        parameters = {
+            "computeName": self.compute_instance_name,
+            'workspaceName': self.workspace_name,
+            'location': self.location,
+            'objectId': self.environment['USER_OID'],
+            'tenantId': self.tenant_id,
+        }
+        parameters = {k: {'value': v} for k, v in parameters.items()}
+
+        deployment_properties = {
+            'mode': DeploymentMode.incremental,
+            'template': template,
+            'parameters': parameters
+        }
+
+        deployment_properties = DeploymentProperties(mode=DeploymentMode.incremental,
+                                             template=template,
+                                             parameters=parameters)
+
+        deployment_async_operation = self.client.deployments.create_or_update(
+            self.resource_group_name,
+            'pangeong-CIDeployment',
+            Deployment(properties=deployment_properties))
+        deployment_async_operation.wait(5)
+        self.log.info(f"Waiting for deployment to conclude..")
+        self.compute_instance = ComputeTarget(workspace=self.workspace,
+                                                name=self.compute_instance_name)
+        self.log.info(f"Compute instance {self.compute_instance_name} has been created.")
+
+
+    # def _destroy_deployment(self):
+    #     """Destroy the given resource group"""
+    #     self.client.resource_groups.delete(self.resource_group)
+
     def _set_up_compute_instance(self):
         """
         Set up an AML compute instance for the workspace. The compute instance is responsible
@@ -272,7 +322,8 @@ class AMLSpawner(Spawner):
     async def _set_up_resources(self):
         """Both of these methods are blocking, so try and async them as a pair."""
         self._set_up_workspace()
-        self._set_up_compute_instance()
+        # self._set_up_compute_instance()
+        self._deploy_compute_instance()
         self._start_compute_instance()  # Ensure existing but stopped resources are running.
 
     def _tear_down_resources(self):
@@ -340,7 +391,7 @@ class AMLSpawner(Spawner):
         try:
             self._start_recording_events()
             self._add_event("Initializing...", 0)
-            
+
             auth_state = await decrypt(self.user.encrypted_auth_state)
             self.environment['USER_OID'] = auth_state["user"]["oid"]
 
@@ -348,8 +399,12 @@ class AMLSpawner(Spawner):
 
             # await self._cli_login()
             self.sp_auth = ServicePrincipalAuthentication(tenant_id=self.tenant_id,
-                                                      service_principal_id=self.client_id,
-                                                      service_principal_password=self.client_secret)
+                                                          service_principal_id=self.client_id,
+                                                          service_principal_password=self.client_secret)
+
+            self.credentials = ServicePrincipalCredentials(tenant=self.tenant_id,
+                                                           client_id=self.client_id,
+                                                           secret=self.client_secret)
 
             await self._set_up_resources()
 
