@@ -13,12 +13,14 @@ from io import BytesIO
 import asyncio
 import re
 
-SUBSCRIPTION_ID = os.environ.get('SUBSCRIPTION_ID')
-STORAGE_ACCOUNT_CONN_STR = os.environ.get('STORAGE_ACCOUNT_CONN_STR')
-STORAGE_ACCOUNT_KEY = STORAGE_ACCOUNT_CONN_STR.split("AccountKey=")[1].split(';')[0]
-STORAGE_ACCOUNT_NAME = os.environ.get('STORAGE_ACCOUNT_NAME')
-SAS_TOKEN = os.environ.get('SAS_TOKEN')
-
+try:
+    SUBSCRIPTION_ID = os.environ.get('SUBSCRIPTION_ID')
+    STORAGE_ACCOUNT_CONN_STR = os.environ.get('STORAGE_ACCOUNT_CONN_STR')
+    STORAGE_ACCOUNT_KEY = STORAGE_ACCOUNT_CONN_STR.split("AccountKey=")[1].split(';')[0]
+    STORAGE_ACCOUNT_NAME = os.environ.get('STORAGE_ACCOUNT_NAME')
+    SAS_TOKEN = os.environ.get('SAS_TOKEN')
+except:
+    print('Storage Account variables not found')
 
 class AzureUserFiles():
 

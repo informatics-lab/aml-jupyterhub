@@ -33,5 +33,5 @@ c.AzureAdOAuthenticator.tenant_id = os.environ.get('AAD_TENANT_ID') # Not necess
 c.JupyterHub.spawner_class = 'aml_jupyterhub.aml_spawner.AMLSpawner'
 
 # Options for the AMLSpawner
-c.AMLSpawner.mount_userspace = True
+# c.AMLSpawner.mount_userspace = True
 c.AMLSpawner.mount_userspace_location = "~/userfiles"
