@@ -20,7 +20,7 @@ try:
     STORAGE_ACCOUNT_NAME = os.environ.get('STORAGE_ACCOUNT_NAME')
     SAS_TOKEN = os.environ.get('SAS_TOKEN')
 except:
-    print('Storage Account variables not found')
+    print('Storage Account variables not found.')
 
 class AzureUserFiles():
 

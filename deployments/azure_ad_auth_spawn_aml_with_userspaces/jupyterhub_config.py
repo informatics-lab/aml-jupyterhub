@@ -5,22 +5,12 @@
 # Class for authenticating users.
 
 import os
-import json
-import jwt
-import os
-import urllib
 
-from tornado.auth import OAuth2Mixin
-from tornado.log import app_log
-from tornado.httpclient import HTTPRequest, AsyncHTTPClient
-
-from jupyterhub.auth import LocalAuthenticator
-from traitlets import Unicode, default
 from oauthenticator.azuread import AzureAdOAuthenticator
 
-c.JupyterHub.authenticator_class = AzureAdOAuthenticator
-
 c.Application.log_level = 'DEBUG'
+
+c.JupyterHub.authenticator_class = AzureAdOAuthenticator
 
 c.AzureAdOAuthenticator.enable_auth_state = True
 c.AzureAdOAuthenticator.oauth_callback_url = f"https://{os.environ['HOST']}/hub/oauth_callback"
@@ -34,4 +24,4 @@ c.JupyterHub.spawner_class = 'aml_jupyterhub.aml_spawner.AMLSpawner'
 
 # Options for the AMLSpawner
 # c.AMLSpawner.mount_userspace = True
-c.AMLSpawner.mount_userspace_location = "~/userfiles"
+# c.AMLSpawner.mount_userspace_location = "~/userfiles"

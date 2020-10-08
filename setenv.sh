@@ -40,6 +40,7 @@ set +o allexport
 az ad app permission add --id=$AAD_CLIENT_ID \
                          --api="00000002-0000-0000-c000-000000000000" \
                          --api-permissions="311a71cc-e848-46a1-bdf8-97ff7156d8e6=Scope"
+# Grant the app an API Delegated permissions with default expiration in 1 year
 az ad app permission grant --id=$AAD_CLIENT_ID \
                            --api="00000002-0000-0000-c000-000000000000"
 # Set reply-URL

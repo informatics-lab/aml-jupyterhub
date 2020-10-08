@@ -6,24 +6,18 @@ import datetime
 import re
 import tempfile
 import base64
-
-from concurrent.futures import ThreadPoolExecutor
+import asyncio
 
 from traitlets import Unicode, Integer, default, Bool
 from jupyterhub.spawner import Spawner
 from jupyterhub.crypto import decrypt
 
-from tornado.concurrent import run_on_executor
-import asyncio
-
 from async_generator import async_generator, yield_
 
 from azureml.core import Workspace
-from azureml.core.authentication import ServicePrincipalAuthentication # NEEDED?
-from azure.common.credentials import ServicePrincipalCredentials # NEEDED?
-from azureml.core.compute import ComputeTarget, AmlCompute, ComputeInstance
+from azureml.core.authentication import ServicePrincipalAuthentication
+from azureml.core.compute import ComputeInstance
 from azureml.exceptions import ComputeTargetException, ProjectSystemException
-from azureml.core.authentication import InteractiveLoginAuthentication
 
 from . import redirector
 from .files import AzureUserFiles
@@ -81,15 +75,27 @@ class AMLSpawner(Spawner):
         super().__init__(*args, **kwargs)
 
         # Fix this for now.
-        self.resource_group_name = os.environ.get('RESOURCE_GROUP')
-
         self.workspace = None
         self.compute_instance = None
         self._application_urls = None
         self.redirect_server = None
 
-        # XXX: this can be done better.
-        self._authenticate()
+        self.subscription_id = os.environ['SUBSCRIPTION_ID']
+        self.location = os.environ['LOCATION']
+
+        self.resource_group_name = os.environ['RESOURCE_GROUP']
+        self.workspace_name = os.environ['SPAWN_TO_WORK_SPACE']
+        self.compute_instance_name = self._make_safe_for_compute_name(
+            self.user.escaped_name + os.environ['SPAWN_COMPUTE_INSTANCE_SUFFIX'])
+
+        self.tenant_id = os.environ["AAD_TENANT_ID"]
+        self.client_id = os.environ["AAD_CLIENT_ID"]
+        self.client_secret = os.environ["AAD_CLIENT_SECRET"]
+
+        self.sp_auth = ServicePrincipalAuthentication(
+            tenant_id=self.tenant_id,
+            service_principal_id=self.client_id,
+            service_principal_password=self.client_secret)
 
     def _create_ssh_key(self):
         if os.path.isfile(os.environ['SSH_PRIVATE_KEY']):
@@ -122,23 +128,6 @@ class AMLSpawner(Spawner):
         if not re.match('[A-z]', name[0]):
             name = 'A-' + name
         return name[:23]
-
-    def _authenticate(self):
-        """
-        Authenticate our user to Azure.
-
-        TODO: actually perform authentication, rather than setting variables!
-        TODO: figure out how to get an existing workspace for a user (like the AML login page.)
-
-        """
-        self.tenant_id = os.environ.get("TENANT_ID")
-        self.subscription_id = os.environ.get('SUBSCRIPTION_ID')
-        self.location = os.environ.get('LOCATION')
-        self.workspace_name = os.environ.get('SPAWN_TO_WORK_SPACE')
-        self.compute_instance_name = self._make_safe_for_compute_name(self.user.escaped_name + os.environ.get('SPAWN_COMPUTE_INSTANCE_SUFFIX'))
-        self.tenant_id = os.environ["AAD_TENANT_ID"]
-        self.client_id = os.environ["AAD_CLIENT_ID"]
-        self.client_secret = os.environ["AAD_CLIENT_SECRET"]
 
     @ property
     def application_urls(self):
@@ -186,54 +175,30 @@ class AMLSpawner(Spawner):
             self._add_event(f"Workspace {self.workspace_name} not found!", 1)
             raise
 
-    def _deploy_compute_instance(self):
+    def _set_up_compute_instance(self):
         """
         Set up an AML compute instance for the workspace. The compute instance is responsible
         for running the Python kernel and the optional JupyterLab instance for the workspace.
         """
-        from azure.mgmt.resource import ResourceManagementClient
-        from azure.mgmt.resource.resources.models import DeploymentMode
-        from azure.mgmt.resource.resources.models import Deployment
-        from azure.mgmt.resource.resources.models import DeploymentProperties
-        import json
+        # Verify that cluster does not exist already.
+        try:
+            self.compute_instance = ComputeInstance(workspace=self.workspace,
+                                                    name=self.compute_instance_name)
 
-        self.client = ResourceManagementClient(self.credentials, self.subscription_id)
-        template_path = os.path.join(os.path.dirname(
-            __file__), 'templates', 'CItemplate.json')
-        with open(template_path, 'r') as template_file_fd:
-            template = json.load(template_file_fd)
-
-        self.log.info(f"Deploying template at {template_path}.")
-
-        parameters = {
-            "computeName": self.compute_instance_name,
-            'workspaceName': self.workspace_name,
-            'location': self.location,
-            'objectId': self.environment['USER_OID'],
-            'tenantId': self.tenant_id,
-        }
-        parameters = {k: {'value': v} for k, v in parameters.items()}
-
-        deployment_properties = {
-            'mode': DeploymentMode.incremental,
-            'template': template,
-            'parameters': parameters
-        }
-
-        deployment_properties = DeploymentProperties(mode=DeploymentMode.incremental,
-                                             template=template,
-                                             parameters=parameters)
-
-        deployment_async_operation = self.client.deployments.create_or_update(
-            self.resource_group_name,
-            'pangeong-CIDeployment',
-            Deployment(properties=deployment_properties))
-        deployment_async_operation.wait(5)
-        self.log.info(f"Waiting for deployment to conclude..")
-        self.compute_instance = ComputeTarget(workspace=self.workspace,
-                                                name=self.compute_instance_name)
-        self.log.info(f"Compute instance {self.compute_instance_name} has been created.")
-
+            self.log.info(f"Compute instance {self.compute_instance_name} already exists.")
+            self._add_event(f"Compute instance {self.compute_instance_name} already exists", 20)
+        except ComputeTargetException:
+            self._add_event(f"Creating compute instance {self.compute_instance_name}", 15)
+            instance_config = ComputeInstance.provisioning_configuration(vm_size="Standard_DS1_v2",
+                                                                        #  ssh_public_access=True,
+                                                                        #  admin_user_ssh_public_key=os.environ.get('SSH_PUB_KEY'),
+                                                                         assigned_user_object_id=self.environment['USER_OID'],
+                                                                         assigned_user_tenant_id=self.tenant_id)
+            self.compute_instance = ComputeInstance.create(self.workspace,
+                                                         self.compute_instance_name,
+                                                         instance_config)
+            self.log.info(f"Created compute instance {self.compute_instance_name}.")
+            self._add_event(f"Created compute instance {self.compute_instance_name}.", 20)
 
     def _start_compute_instance(self):
         stopped_state = "stopped"
@@ -290,8 +255,7 @@ class AMLSpawner(Spawner):
     async def _set_up_resources(self):
         """Both of these methods are blocking, so try and async them as a pair."""
         self._get_workspace()
-        # self._set_up_compute_instance()
-        self._deploy_compute_instance()
+        self._set_up_compute_instance()
         self._start_compute_instance()  # Ensure existing but stopped resources are running.
 
     def _tear_down_resources(self):
@@ -323,16 +287,7 @@ class AMLSpawner(Spawner):
 
             auth_state = await decrypt(self.user.encrypted_auth_state)
             self.environment['USER_OID'] = auth_state["user"]["oid"]
-
             self._add_event("Spawner env", self.get_env())
-
-            self.sp_auth = ServicePrincipalAuthentication(tenant_id=self.tenant_id,
-                                                          service_principal_id=self.client_id,
-                                                          service_principal_password=self.client_secret)
-
-            self.credentials = ServicePrincipalCredentials(tenant=self.tenant_id,
-                                                           client_id=self.client_id,
-                                                           secret=self.client_secret)
 
             await self._set_up_resources()
 

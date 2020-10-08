@@ -10,29 +10,15 @@ Code work and experiments to integrate Azure Machine Learning with JupyterHub.
 
 ## How to develop
 
-### Create a Service Principal
-Log in with Azure CLI, then create a SP.
-```
-az ad sp create-for-rbac --name <sp_name> --skip-assignment --sdk-auth > local-sp.json
-```
-Use the values of "clientId", "clientSecret", "subscriptionId", "tenantId" to fill the `.env` file and export the variables (a sdescribed below).
-
-Provide RBAC Contributor role to the SP for the entire resource group (to be changed in the future!).
-```
-az role assignment create --assignee $AAD_CLIENT_ID --role "Contributor” \
-    --scope "/subscriptions/$AAD_SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP"
-```
-
 ### Set up your environment vars
-copy `env.template` to `.env` and fill in.
+Copy `env.template` to `.env` and fill in. See [here](environmentvars.md) for an explanation of the parameters, and where to find them.
 
-Depending on what IDE you're using, setting these variables in a file `.env` file may be the default way to have them available.  
-However, if you're running from the command line, run the following command to set your environment variables from this file:
+### Set up the Resources
+From the command line,
 ```
-set -o allexport; source .env; set +o allexport
+source setenv.sh
 ```
-See [here](environmentvars.md) for an explanation of the parameters, and where to find them.
-
+This script export the variables in `.env` and if the specified Resource Group and Workspace do not already exist it creates them. Moreover, a Service Principal is automatically created and granted contributor role on the resource group (needed by the Spawner) and permission to read the profile of the signed-in user (needed by the Authenticator). Both the JupyterHub's Authenticator and Spawner authenticate themself with Azure Active Directory using this SP.
 
 ### Set up your conda environment
 
