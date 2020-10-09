@@ -6,24 +6,20 @@ import datetime
 import re
 import tempfile
 import base64
-
-from concurrent.futures import ThreadPoolExecutor
+import asyncio
 
 from traitlets import Unicode, Integer, default, Bool
 from jupyterhub.spawner import Spawner
-
-from tornado.concurrent import run_on_executor
-import asyncio
+from jupyterhub.crypto import decrypt
 
 from async_generator import async_generator, yield_
 
 from azureml.core import Workspace
-from azureml.core.compute import ComputeTarget, AmlCompute, ComputeInstance
+from azureml.core.authentication import ServicePrincipalAuthentication
+from azureml.core.compute import ComputeInstance
 from azureml.exceptions import ComputeTargetException, ProjectSystemException
-from azureml.core.authentication import InteractiveLoginAuthentication
 
 from . import redirector
-from .files import AzureUserFiles
 
 URL_REGEX = re.compile(r'\bhttps://[^ ]*')
 CODE_REGEX = re.compile(r'\b[A-Z0-9]{9}\b')
@@ -57,47 +53,30 @@ class AMLSpawner(Spawner):
         start should return when the server process is started and its location is known.
         """)
 
-    mount_userspace = Bool(
-        False,
-        config=True,
-        help="""
-        Whether or not to create (if not exists) and mount an Azure File Share to store user data
-        than can persist between VMs and accross Azure ML workspaces.
-        """
-    )
-
-    mount_userspace_location = Unicode(
-        "~/userfiles",
-        config=True,
-        help="""
-        Were to mount the users userspace files if `mount_userspace` is `True`.
-        """
-    )
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-
-        # Fix this for now.
-        self.resource_group_name = os.environ.get('RESOURCE_GROUP')
 
         self.workspace = None
         self.compute_instance = None
         self._application_urls = None
         self.redirect_server = None
-        self._create_ssh_key()
 
-        # XXX: this can be done better.
-        self._authenticate()
+        self.subscription_id = os.environ['SUBSCRIPTION_ID']
+        self.location = os.environ['LOCATION']
 
-    def _create_ssh_key(self):
-        if os.path.isfile(os.environ['SSH_PRIVATE_KEY']):
-            # SSH_PRIVATE_KEY=<path_to_private_ssh_key_file>
-            self._ssh_private_key = os.environ['SSH_PRIVATE_KEY']
-        else:
-            # SSH_PRIVATE_KEY=<base64_encoded_private_ssh_key>
-            with tempfile.NamedTemporaryFile('wb', delete=False) as ssh_file:
-                ssh_file.write(base64.b64decode(os.environ['SSH_PRIVATE_KEY']))
-            self._ssh_private_key = ssh_file.name
+        self.resource_group_name = os.environ['RESOURCE_GROUP']
+        self.workspace_name = os.environ['SPAWN_TO_WORK_SPACE']
+        self.compute_instance_name = self._make_safe_for_compute_name(
+            self.user.escaped_name + os.environ['SPAWN_COMPUTE_INSTANCE_SUFFIX'])
+
+        self.tenant_id = os.environ["AAD_TENANT_ID"]
+        self.client_id = os.environ["AAD_CLIENT_ID"]
+        self.client_secret = os.environ["AAD_CLIENT_SECRET"]
+
+        self.sp_auth = ServicePrincipalAuthentication(
+            tenant_id=self.tenant_id,
+            service_principal_id=self.client_id,
+            service_principal_password=self.client_secret)
 
     def _start_recording_events(self):
         self._events = []
@@ -120,20 +99,6 @@ class AMLSpawner(Spawner):
         if not re.match('[A-z]', name[0]):
             name = 'A-' + name
         return name[:23]
-
-    def _authenticate(self):
-        """
-        Authenticate our user to Azure.
-
-        TODO: actually perform authentication, rather than setting variables!
-        TODO: figure out how to get an existing workspace for a user (like the AML login page.)
-
-        """
-        self.tenant_id = os.environ.get("TENANT_ID")
-        self.subscription_id = os.environ.get('SUBSCRIPTION_ID')
-        self.location = os.environ.get('LOCATION')
-        self.workspace_name = os.environ.get('SPAWN_TO_WORK_SPACE')
-        self.compute_instance_name = self._make_safe_for_compute_name(self.user.escaped_name + os.environ.get('SPAWN_COMPUTE_INSTANCE_SUFFIX'))
 
     @ property
     def application_urls(self):
@@ -160,56 +125,39 @@ class AMLSpawner(Spawner):
         errors = compute_instance_status.errors
         return state, errors
 
-    async def _mount_userspace(self):
-        user_files = AzureUserFiles(self.user, self.log)
-        user_files.create_user_file_share_if_not_exists()
-        self._add_event(f"Mounting user files...", 75)
-        await user_files.mount_user_ds_on_ci(self.compute_instance, self.mount_userspace_location, self._ssh_private_key)
-        self._add_event(f"Mounted user files.", 90)
-
-    def _set_up_workspace(self):
-        # Verify that the workspace does not already exist.
-        interactive_auth = InteractiveLoginAuthentication(tenant_id=self.tenant_id)
+    def _get_workspace(self):
         try:
-            self.workspace = Workspace(self.subscription_id,
-                                       self.resource_group_name,
-                                       self.workspace_name,
-                                       auth=interactive_auth)
-            self.log.info(f"Workspace {self.workspace_name} already exits.")
-            self._add_event(f"Workspace {self.workspace_name} already exits.", 10)
+            self.workspace = Workspace(workspace_name=self.workspace_name,
+                                       subscription_id=self.subscription_id,
+                                       resource_group=self.resource_group_name,
+                                       auth=self.sp_auth)
+            self.log.info(f"Using workspace: {self.workspace_name}.")
+            self._add_event(f"Using workspace: {self.workspace_name}.", 10)
         except ProjectSystemException:
-            self.log.info(f"Creating workspace {self.workspace_name}.")
-            self._add_event(f"Creating workspace {self.workspace_name}", 1)
-            self.workspace = Workspace.create(name=self.workspace_name,
-                                              subscription_id=self.subscription_id,
-                                              resource_group=self.resource_group_name,
-                                              create_resource_group=False,
-                                              location=self.location,
-                                              sku='enterprise',
-                                              show_output=False,
-                                              auth=interactive_auth)
-            self.log.info(f"Workspace {self.workspace_name} created.")
-            self._add_event(f"Workspace {self.workspace_name} created", 10)
+            self.log.error(f"Workspace {self.workspace_name} not found!")
+            self._add_event(f"Workspace {self.workspace_name} not found!", 1)
+            raise
 
     def _set_up_compute_instance(self):
         """
         Set up an AML compute instance for the workspace. The compute instance is responsible
         for running the Python kernel and the optional JupyterLab instance for the workspace.
-
         """
         # Verify that cluster does not exist already.
         try:
-            self.compute_instance = ComputeTarget(workspace=self.workspace,
-                                                  name=self.compute_instance_name)
+            self.compute_instance = ComputeInstance(workspace=self.workspace,
+                                                    name=self.compute_instance_name)
 
             self.log.info(f"Compute instance {self.compute_instance_name} already exists.")
             self._add_event(f"Compute instance {self.compute_instance_name} already exists", 20)
         except ComputeTargetException:
             self._add_event(f"Creating compute instance {self.compute_instance_name}", 15)
             instance_config = ComputeInstance.provisioning_configuration(vm_size="Standard_DS1_v2",
-                                                                         ssh_public_access=True,
-                                                                         admin_user_ssh_public_key=os.environ.get('SSH_PUB_KEY'))
-            self.compute_instance = ComputeTarget.create(self.workspace,
+                                                                        #  ssh_public_access=True,
+                                                                        #  admin_user_ssh_public_key=os.environ.get('SSH_PUB_KEY'),
+                                                                         assigned_user_object_id=self.environment['USER_OID'],
+                                                                         assigned_user_tenant_id=self.tenant_id)
+            self.compute_instance = ComputeInstance.create(self.workspace,
                                                          self.compute_instance_name,
                                                          instance_config)
             self.log.info(f"Created compute instance {self.compute_instance_name}.")
@@ -258,7 +206,9 @@ class AMLSpawner(Spawner):
                 self._add_event(f"Compute instance in failed state: {state!r}.", min_progress)
                 raise ComputeTargetException(f"Compute instance in failed state: {state!r}.")
             else:
-                self._add_event(f"Compute in state '{state.lower()}' after {time_taken.total_seconds():.0f} seconds. Aiming for target state '{target_state}', this may take a short while", progress)
+                self._add_event(
+                    f"Compute in state '{state.lower()}' after {time_taken.total_seconds():.0f} seconds."
+                    + f"Aiming for target state '{target_state}', this may take a short while", progress)
             await asyncio.sleep(5)
 
     def _stop_redirect(self):
@@ -269,7 +219,7 @@ class AMLSpawner(Spawner):
 
     async def _set_up_resources(self):
         """Both of these methods are blocking, so try and async them as a pair."""
-        self._set_up_workspace()
+        self._get_workspace()
         self._set_up_compute_instance()
         self._start_compute_instance()  # Ensure existing but stopped resources are running.
 
@@ -294,57 +244,19 @@ class AMLSpawner(Spawner):
                 })
             await asyncio.sleep(1)
 
-    async def _cli_login(self):
-
-        async def _capture_az_login_code_and_url(stream):
-            url = None
-            code = None
-            while True:
-                line = await stream.readline()
-                if line:
-                    output = line.decode('ascii')
-
-                    maybe_url = URL_REGEX.findall(output)
-                    if len(maybe_url) == 1:
-                        url = maybe_url[0]
-
-                    maybe_code = CODE_REGEX.findall(output)
-                    if len(maybe_code) == 1:
-                        code = maybe_code[0]
-
-                    if len(maybe_url) > 1 or len(maybe_code) > 1:
-                        raise RuntimeError(f"The output from the az login command had more than one url or code: {output}")
-
-                    if code and url:
-                        msg = f"**Please visit {url} and enter {code} to authenticate the spawner to act on your behalf.**"
-                        self._add_event(msg)
-                        self.log.info(msg)
-                        break
-                else:
-                    break
-        cmd = ["az", "login", "--use-device-code"]
-        proc = await asyncio.create_subprocess_exec(*cmd,
-                                                    stdout=asyncio.subprocess.PIPE,
-                                                    stderr=asyncio.subprocess.STDOUT)
-
-        await _capture_az_login_code_and_url(proc.stdout)
-        await proc.wait()
-        self._add_event("Login complete, thank you!", 5)
-        await asyncio.sleep(1.5)  # This gives the progress bar a chance to notice, better user experience even if 1.5 seconds slower.
-
     async def start(self):
         """Start (spawn) AzureML resouces."""
         try:
             self._start_recording_events()
             self._add_event("Initializing...", 0)
-            await self._cli_login()
+
+            auth_state = await decrypt(self.user.encrypted_auth_state)
+            self.environment['USER_OID'] = auth_state["user"]["oid"]
+
             await self._set_up_resources()
 
             target_state = "running"
             await self._wait_for_target_state(target_state)
-
-            if self.mount_userspace:
-                await self._mount_userspace()
 
             url = self.application_urls["Jupyter Lab"]
             route = redirector.RedirectServer.get_existing_redirect(url)
@@ -354,7 +266,7 @@ class AMLSpawner(Spawner):
                 self._add_event(f"Creating route to compute instance.", 91)
                 self.redirect_server = redirector.RedirectServer(url)
                 self.redirect_server.start()
-                await asyncio.sleep(1)  # not sure this is need but did occasionally get bug where proxy didn't seem to have started fast enough so put in in as a just in case.
+                await asyncio.sleep(1)
                 route = self.redirect_server.route
                 self._add_event(f"Route to compute instance created.", 95)
 
