@@ -20,7 +20,6 @@ from azureml.core.compute import ComputeInstance
 from azureml.exceptions import ComputeTargetException, ProjectSystemException
 
 from . import redirector
-from .files import AzureUserFiles
 
 URL_REGEX = re.compile(r'\bhttps://[^ ]*')
 CODE_REGEX = re.compile(r'\b[A-Z0-9]{9}\b')
@@ -54,27 +53,9 @@ class AMLSpawner(Spawner):
         start should return when the server process is started and its location is known.
         """)
 
-    mount_userspace = Bool(
-        False,
-        config=True,
-        help="""
-        Whether or not to create (if not exists) and mount an Azure File Share to store user data
-        than can persist between VMs and accross Azure ML workspaces.
-        """
-    )
-
-    mount_userspace_location = Unicode(
-        "~/userfiles",
-        config=True,
-        help="""
-        Were to mount the users userspace files if `mount_userspace` is `True`.
-        """
-    )
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        # Fix this for now.
         self.workspace = None
         self.compute_instance = None
         self._application_urls = None
@@ -96,16 +77,6 @@ class AMLSpawner(Spawner):
             tenant_id=self.tenant_id,
             service_principal_id=self.client_id,
             service_principal_password=self.client_secret)
-
-    def _create_ssh_key(self):
-        if os.path.isfile(os.environ['SSH_PRIVATE_KEY']):
-            # SSH_PRIVATE_KEY=<path_to_private_ssh_key_file>
-            self._ssh_private_key = os.environ['SSH_PRIVATE_KEY']
-        else:
-            # SSH_PRIVATE_KEY=<base64_encoded_private_ssh_key>
-            with tempfile.NamedTemporaryFile('wb', delete=False) as ssh_file:
-                ssh_file.write(base64.b64decode(os.environ['SSH_PRIVATE_KEY']))
-            self._ssh_private_key = ssh_file.name
 
     def _start_recording_events(self):
         self._events = []
@@ -153,14 +124,6 @@ class AMLSpawner(Spawner):
         state = compute_instance_status.state
         errors = compute_instance_status.errors
         return state, errors
-
-    async def _mount_userspace(self):
-        self._create_ssh_key()
-        user_files = AzureUserFiles(self.user, self.log)
-        user_files.create_user_file_share_if_not_exists()
-        self._add_event(f"Mounting user files...", 75)
-        await user_files.mount_user_ds_on_ci(self.compute_instance, self.mount_userspace_location, self._ssh_private_key)
-        self._add_event(f"Mounted user files.", 90)
 
     def _get_workspace(self):
         try:
@@ -243,7 +206,9 @@ class AMLSpawner(Spawner):
                 self._add_event(f"Compute instance in failed state: {state!r}.", min_progress)
                 raise ComputeTargetException(f"Compute instance in failed state: {state!r}.")
             else:
-                self._add_event(f"Compute in state '{state.lower()}' after {time_taken.total_seconds():.0f} seconds. Aiming for target state '{target_state}', this may take a short while", progress)
+                self._add_event(
+                    f"Compute in state '{state.lower()}' after {time_taken.total_seconds():.0f} seconds."
+                    + f"Aiming for target state '{target_state}', this may take a short while", progress)
             await asyncio.sleep(5)
 
     def _stop_redirect(self):
@@ -287,15 +252,11 @@ class AMLSpawner(Spawner):
 
             auth_state = await decrypt(self.user.encrypted_auth_state)
             self.environment['USER_OID'] = auth_state["user"]["oid"]
-            self._add_event("Spawner env", self.get_env())
 
             await self._set_up_resources()
 
             target_state = "running"
             await self._wait_for_target_state(target_state)
-
-            if self.mount_userspace:
-                await self._mount_userspace()
 
             url = self.application_urls["Jupyter Lab"]
             route = redirector.RedirectServer.get_existing_redirect(url)
@@ -305,7 +266,7 @@ class AMLSpawner(Spawner):
                 self._add_event(f"Creating route to compute instance.", 91)
                 self.redirect_server = redirector.RedirectServer(url)
                 self.redirect_server.start()
-                await asyncio.sleep(1)  # not sure this is need but did occasionally get bug where proxy didn't seem to have started fast enough so put in in as a just in case.
+                await asyncio.sleep(1)
                 route = self.redirect_server.route
                 self._add_event(f"Route to compute instance created.", 95)
 
