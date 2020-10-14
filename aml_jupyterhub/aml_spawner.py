@@ -65,7 +65,7 @@ class AMLSpawner(Spawner):
         self.location = os.environ['LOCATION']
 
         self.resource_group_name = os.environ['RESOURCE_GROUP']
-        self.workspace_name = os.environ['SPAWN_TO_WORK_SPACE']
+        # self.workspace_name = os.environ['SPAWN_TO_WORK_SPACE']
         self.compute_instance_name = self._make_safe_for_compute_name(
             self.user.escaped_name + os.environ['SPAWN_COMPUTE_INSTANCE_SUFFIX'])
 
@@ -77,6 +77,22 @@ class AMLSpawner(Spawner):
             tenant_id=self.tenant_id,
             service_principal_id=self.client_id,
             service_principal_password=self.client_secret)
+
+    def _options_form_default(self):
+        ws_names = Workspace.list(subscription_id=self.subscription_id, auth=self.sp_auth).keys()
+        ws_opt = '\n'.join([f"<option value=\"{ws}\">{ws}</option>" for ws in ws_names])
+        return f"""
+        <h2>Welcome {self.user.name}.</h2>
+        <div class="form-group">
+            <label for="ws_select">Select an existing Workspace:</label>
+            <select name="ws_select" class="form-control">
+                {ws_opt}
+            </select>
+        </div>
+        """
+
+    def options_from_form(self, formdata):
+        self.workspace_name = formdata.get('ws_select')[0]
 
     def _start_recording_events(self):
         self._events = []
@@ -152,9 +168,8 @@ class AMLSpawner(Spawner):
             self._add_event(f"Compute instance {self.compute_instance_name} already exists", 20)
         except ComputeTargetException:
             self._add_event(f"Creating compute instance {self.compute_instance_name}", 15)
+            # Create CI provisioned on behalf of another user - Enabling SSH is not allowed in this case.
             instance_config = ComputeInstance.provisioning_configuration(vm_size="Standard_DS1_v2",
-                                                                        #  ssh_public_access=True,
-                                                                        #  admin_user_ssh_public_key=os.environ.get('SSH_PUB_KEY'),
                                                                          assigned_user_object_id=self.environment['USER_OID'],
                                                                          assigned_user_tenant_id=self.tenant_id)
             self.compute_instance = ComputeInstance.create(self.workspace,
