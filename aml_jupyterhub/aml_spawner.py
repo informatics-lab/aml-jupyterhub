@@ -65,8 +65,7 @@ class AMLSpawner(Spawner):
         self.location = os.environ['LOCATION']
 
         self.resource_group_name = os.environ['RESOURCE_GROUP']
-        # self.workspace_name = os.environ['SPAWN_TO_WORK_SPACE']
-        self.compute_instance_name = self._make_safe_for_compute_name(
+        self.default_CI_name = self._make_safe_for_compute_name(
             self.user.escaped_name + os.environ['SPAWN_COMPUTE_INSTANCE_SUFFIX'])
 
         self.tenant_id = os.environ["AAD_TENANT_ID"]
@@ -81,18 +80,38 @@ class AMLSpawner(Spawner):
     def _options_form_default(self):
         ws_names = Workspace.list(subscription_id=self.subscription_id, auth=self.sp_auth).keys()
         ws_opt = '\n'.join([f"<option value=\"{ws}\">{ws}</option>" for ws in ws_names])
+        ws_default = '-'.join(self.user.name.split())+"-workspace"
         return f"""
         <h2>Welcome {self.user.name}.</h2>
         <div class="form-group">
-            <label for="ws_select">Select an existing Workspace:</label>
+            <label for="ws_select">Select an existing workspace or create a new one:</label>
             <select name="ws_select" class="form-control">
                 {ws_opt}
+                <option value="">New Workspace</option>
             </select>
+            <label for="new_ws_name">If New Workspace, specify a name:</label>
+            <input name="new_ws_name" class="form-control" value="{ws_default}"
+                placeholder="{ws_default}"></input>
+            If a workspace with the same name already exists it will be used and the new workspace will not be created.
+        </div>
+        <div class="form-group">
+            <label for="CI_name">Compute Instance name:</label>
+            <input name="CI_name" class="form-control" value="{self.default_CI_name}"
+                placeholder="{self.default_CI_name}"></input>
+            If a CI with the same name already exists in the selected workspace it will be used.
         </div>
         """
 
     def options_from_form(self, formdata):
-        self.workspace_name = formdata.get('ws_select')[0]
+        # Workspace name
+        ws_selected = formdata.get('ws_select')[0]
+        if not ws_selected:
+            ws_selected = formdata.get('new_ws_name')[0]
+        self.workspace_name = ws_selected
+
+        # CI name
+        self.compute_instance_name = formdata.get('CI_name')[0]
+
 
     def _start_recording_events(self):
         self._events = []
@@ -142,17 +161,20 @@ class AMLSpawner(Spawner):
         return state, errors
 
     def _get_workspace(self):
-        try:
-            self.workspace = Workspace(workspace_name=self.workspace_name,
-                                       subscription_id=self.subscription_id,
-                                       resource_group=self.resource_group_name,
-                                       auth=self.sp_auth)
-            self.log.info(f"Using workspace: {self.workspace_name}.")
-            self._add_event(f"Using workspace: {self.workspace_name}.", 10)
-        except ProjectSystemException:
-            self.log.error(f"Workspace {self.workspace_name} not found!")
-            self._add_event(f"Workspace {self.workspace_name} not found!", 1)
-            raise
+        self.log.info(f"Setting workspace {self.workspace_name}.")
+        self._add_event(f"Setting workspace {self.workspace_name}", 1)
+        self.workspace = Workspace.create(name=self.workspace_name,
+                                            subscription_id=self.subscription_id,
+                                            resource_group=self.resource_group_name,
+                                            create_resource_group=False,
+                                            location=self.location,
+                                            sku='enterprise',
+                                            show_output=False,
+                                            exist_ok=True,
+                                            auth=self.sp_auth)
+        self.log.info(f"Using workspace: {self.workspace_name}.")
+        self._add_event(f"Using workspace: {self.workspace_name}.", 10)
+
 
     def _set_up_compute_instance(self):
         """

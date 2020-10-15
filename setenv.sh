@@ -12,12 +12,6 @@ if ! `az group exists -n $RESOURCE_GROUP`
     then az group create -l $LOCATION -n $RESOURCE_GROUP
 fi
 
-# Create workspace if it does not exist
-az ml workspace create --workspace-name $SPAWN_TO_WORK_SPACE \
-                       --resource-group $RESOURCE_GROUP \
-                       --location $LOCATION \
-                       --exist-ok
-
 # Create a Service Principal with contributor role on resource group
 SP_NAME='pangeong-tmp-sp'
 SP_FILENAME=".$SP_NAME.json"
