@@ -1,10 +1,15 @@
 #!/bin/bash
 
 set -o allexport -x
-# Export all variables in `.env` file
-source .env
+
+# Specify JupyterHub admin user
+JUPYTERHUB_ADMIN=$(az ad signed-in-user show | jq -r '.displayName')
 # Set JUPYTERHUB_CRYPT_KEY to persist users information in auth_state
 JUPYTERHUB_CRYPT_KEY=$(openssl rand -hex 32)
+
+# Export all variables in `.env` file
+source .env
+
 set +o allexport
 
 # Create resource group if it does not exist
@@ -37,6 +42,5 @@ az ad app permission grant --id=$AAD_CLIENT_ID \
 # Set reply-URL
 az ad app update --id=$AAD_CLIENT_ID \
                  --reply-urls="https://$HOST/hub/oauth_callback"
-
 set +x
 
