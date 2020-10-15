@@ -13,10 +13,9 @@ if ! `az group exists -n $RESOURCE_GROUP`
 fi
 
 # Create a Service Principal with contributor role on resource group
-SP_NAME='pangeong-tmp-sp'
-SP_FILENAME=".$SP_NAME.json"
+SP_FILENAME=".az-sp-$SERVICE_PRINCIPAL_NAME.json"
 
-az ad sp create-for-rbac --name  $SP_NAME \
+az ad sp create-for-rbac --name  $SERVICE_PRINCIPAL_NAME \
                          --role contributor \
                          --scopes "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP" \
                          --sdk-auth > $SP_FILENAME
@@ -26,8 +25,6 @@ set -o allexport
 AAD_TENANT_ID=$(jq -r '.tenantId' $SP_FILENAME)
 AAD_CLIENT_ID=$(jq -r '.clientId' $SP_FILENAME)
 AAD_CLIENT_SECRET=$(jq -r '.clientSecret' $SP_FILENAME)
-
-# rm $SP_FILENAME
 set +o allexport
 
 # Add Azure Active Directory Graph delegated permission `User.Read`
