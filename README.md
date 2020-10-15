@@ -34,7 +34,7 @@ From the command line,
 ```
 source setenv.sh
 ```
-This script export the variables in `.env` (if the specified Resource Group and Workspace do not already exist it creates them). Moreover, a Service Principal is automatically created and granted contributor role on the resource group (needed by the Spawner) and permission to read the profile of the signed-in user (needed by the Authenticator). Both the JupyterHub's Authenticator and Spawner authenticate themself with Azure Active Directory using this SP.
+This script exports the variables in `.env` (if the specified Resource Group and Workspace do not already exist, it will create them). Moreover, a Service Principal is automatically created and granted *contributor* role on the resource group (needed by the Spawner) and permission to read the profile of the signed-in user (needed by the Authenticator). Both the JupyterHub's Authenticator and Spawner authenticate themselves with Azure Active Directory using this SP.
 
 Later on, if you want to see your app (e.g. to revoke permissions, or update the callback URL), you can find it here [https://myapps.microsoft.com/](https://myapps.microsoft.com/).  
 
@@ -45,9 +45,8 @@ python -m jupyterhub -f ${workspaceFolder}/deployments/azure_ad_auth_spawn_aml/j
 ```
 
 ## Config / options for the AML Spawner
-If you've not got a `jupyterhub_config.py` file generate with `jupyterhub --generate-config`.
+If you want to create a new `jupyterhub_config.py` file, you can generate one with `jupyterhub --generate-config`.
 
-Then set the options:
+Then set the following option to use the AML spawner:
 
-Use AML spawner:
 `c.JupyterHub.spawner_class = 'aml_jupyterhub.aml_spawner.AMLSpawner'`
