@@ -23,4 +23,6 @@ c.AzureAdOAuthenticator.tenant_id = os.environ.get('AAD_TENANT_ID') # Not necess
 # The class to use for spawning single-user servers.
 c.JupyterHub.spawner_class = 'aml_jupyterhub.aml_spawner.AMLSpawner'
 
-c.JupyterHub.shutdown_on_logout =False
+# c.JupyterHub.shutdown_on_logout = True
+c.JupyterHub.allow_named_servers = True
+c.JupyterHub.redirect_to_server = False
