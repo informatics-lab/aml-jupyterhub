@@ -5,7 +5,7 @@ import time
 import datetime
 import re
 import tempfile
-import base64
+import hashlib
 import asyncio
 
 from traitlets import Unicode, Integer, default, Bool
@@ -28,10 +28,10 @@ URL_REGEX = re.compile(r'\bhttps://[^ ]*')
 CODE_REGEX = re.compile(r'\b[A-Z0-9]{9}\b')
 VM_SIZES = {
     "uksouth": {
-        "Small": "Standard_DS1_v2",
-        "Medium": "Standard_DS3_v2",
-        "Large": "Standard_DS5_v2",
-        "GPU": "Standard_NC6"
+        "Small ($)": "Standard_DS1_v2",
+        "Medium ($$)": "Standard_DS3_v2",
+        "Large ($$$)": "Standard_DS5_v2",
+        "GPU ($$$)": "Standard_NC6"
     }
 }
 
@@ -102,10 +102,25 @@ class AMLSpawner(Spawner):
         """
         return [rg for rg in rg_list if "Pangeo" in rg]
 
+
+    def _construct_ci_name(self):
+        """
+        CI names need to be unique per region, but we want the same user
+        to be returned the same CI on the same project if they request that VM size
+        again.
+        The CI name also can't be more than 24 characters long.
+        So we put the username, project name, and VM size together, then take
+        an md5 hash, and use the first 24 characters as the CI name.
+        """
+        input_str = self.user.name + self.workspace_name + self.vm_size
+        output_hash = hashlib.md5(input_str.encode("utf-8"))
+        return "ci-"+output_hash.hexdigest()[:21]
+
+
     def _options_form_default(self):
         rg_names = [rg.as_dict()["name"] for rg in self.res_mgmt_client.resource_groups.list()]
         filtered_rg_names = self._filter_rg_names(rg_names)
-        vm_sizes = ["Small", "Medium", "Large"]
+        vm_sizes = ["Small ($)", "Medium ($$)", "Large ($$$)", "GPU ($$$)"]
         project_opt = '\n'.join([f"<option value=\"{rg}\">{rg}</option>" for rg in filtered_rg_names])
         vm_size_opt = '\n'.join([f"<option value=\"{vm}\">{vm}</option>" for vm in vm_sizes])
         return f"""
@@ -134,7 +149,7 @@ class AMLSpawner(Spawner):
         size_selected = formdata.get('vm_select')[0]
         self.vm_size = VM_SIZES[self.location][size_selected]
         # CI name - workspace name + Small/Medium/Large
-        self.compute_instance_name = self.workspace_name + "-" + size_selected
+        self.compute_instance_name = self._construct_ci_name()
 
 
     def _start_recording_events(self):
