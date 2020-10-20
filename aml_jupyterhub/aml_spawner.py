@@ -14,6 +14,9 @@ from jupyterhub.crypto import decrypt
 
 from async_generator import async_generator, yield_
 
+from azure.common.credentials import ServicePrincipalCredentials
+from azure.mgmt.resource import ResourceManagementClient
+
 from azureml.core import Workspace
 from azureml.core.authentication import ServicePrincipalAuthentication
 from azureml.core.compute import ComputeInstance
@@ -23,7 +26,14 @@ from . import redirector
 
 URL_REGEX = re.compile(r'\bhttps://[^ ]*')
 CODE_REGEX = re.compile(r'\b[A-Z0-9]{9}\b')
-
+VM_SIZES = {
+    "uksouth": {
+        "Small": "Standard_DS1_v2",
+        "Medium": "Standard_DS3_v2",
+        "Large": "Standard_DS5_v2",
+        "GPU": "Standard_NC6"
+    }
+}
 
 class AMLSpawner(Spawner):
     """
@@ -64,7 +74,7 @@ class AMLSpawner(Spawner):
         self.subscription_id = os.environ['SUBSCRIPTION_ID']
         self.location = os.environ['LOCATION']
 
-        self.resource_group_name = os.environ['RESOURCE_GROUP']
+#        self.resource_group_name = os.environ['RESOURCE_GROUP']
         self.default_CI_name = self._make_safe_for_compute_name(
             self.user.escaped_name + os.environ['SPAWN_COMPUTE_INSTANCE_SUFFIX'])
 
@@ -72,45 +82,59 @@ class AMLSpawner(Spawner):
         self.client_id = os.environ["AAD_CLIENT_ID"]
         self.client_secret = os.environ["AAD_CLIENT_SECRET"]
 
+        self.sp_cred = ServicePrincipalCredentials(
+            tenant=self.tenant_id,
+            client_id=self.client_id,
+            secret=self.client_secret)
         self.sp_auth = ServicePrincipalAuthentication(
             tenant_id=self.tenant_id,
             service_principal_id=self.client_id,
             service_principal_password=self.client_secret)
+        self.res_mgmt_client = ResourceManagementClient(
+            self.sp_cred,
+            self.subscription_id)
+
+
+    def _filter_rg_names(self, rg_list):
+        """
+        We will want to only display Resource Groups that the user has permissions on.
+        For now, just do simple filter on name.
+        """
+        return [rg for rg in rg_list if "Pangeo" in rg]
 
     def _options_form_default(self):
-        ws_names = Workspace.list(subscription_id=self.subscription_id, auth=self.sp_auth).keys()
-        ws_opt = '\n'.join([f"<option value=\"{ws}\">{ws}</option>" for ws in ws_names])
-        ws_default = '-'.join(self.user.name.split())+"-workspace"
+        rg_names = [rg.as_dict()["name"] for rg in self.res_mgmt_client.resource_groups.list()]
+        filtered_rg_names = self._filter_rg_names(rg_names)
+        vm_sizes = ["Small", "Medium", "Large"]
+        project_opt = '\n'.join([f"<option value=\"{rg}\">{rg}</option>" for rg in filtered_rg_names])
+        vm_size_opt = '\n'.join([f"<option value=\"{vm}\">{vm}</option>" for vm in vm_sizes])
         return f"""
         <h2>Welcome {self.user.name}.</h2>
         <div class="form-group">
-            <label for="ws_select">Select an existing workspace or create a new one:</label>
-            <select name="ws_select" class="form-control">
-                {ws_opt}
-                <option value="">New Workspace</option>
+            <label for="proj_select">Select a project:</label>
+            <select name="rg_select" class="form-control">
+                {project_opt}
             </select>
-            <label for="new_ws_name">If New Workspace, specify a name:</label>
-            <input name="new_ws_name" class="form-control" value="{ws_default}"
-                placeholder="{ws_default}"></input>
-            If a workspace with the same name already exists it will be used and the new workspace will not be created.
         </div>
         <div class="form-group">
-            <label for="CI_name">Compute Instance name:</label>
-            <input name="CI_name" class="form-control" value="{self.default_CI_name}"
-                placeholder="{self.default_CI_name}"></input>
-            If a CI with the same name already exists in the selected workspace it will be used.
+            <label for="vm_select">Select the size for your Virtual Machine:</label>
+            <select name="vm_select" class="form-control">
+                {vm_size_opt}
+            </select>
         </div>
         """
 
     def options_from_form(self, formdata):
-        # Workspace name
-        ws_selected = formdata.get('ws_select')[0]
-        if not ws_selected:
-            ws_selected = formdata.get('new_ws_name')[0]
-        self.workspace_name = ws_selected
-
-        # CI name
-        self.compute_instance_name = formdata.get('CI_name')[0]
+        # Resource group name
+        rg_selected = formdata.get('rg_select')[0]
+        self.resource_group_name = rg_selected
+        # Workspace name will be the same as resource group name (=="project name")
+        self.workspace_name = rg_selected
+        # VM size - look up in a dict what "Small", "Medium" etc. are.
+        size_selected = formdata.get('vm_select')[0]
+        self.vm_size = VM_SIZES[self.location][size_selected]
+        # CI name - workspace name + Small/Medium/Large
+        self.compute_instance_name = self.workspace_name + "-" + size_selected
 
 
     def _start_recording_events(self):
