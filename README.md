@@ -36,7 +36,7 @@ source setenv.sh
 ```
 This script exports the variables in `.env` (if the specified Resource Group and Workspace do not already exist, it will create them). Moreover, a Service Principal is automatically created and granted *contributor* role on the resource group (needed by the Spawner) and permission to read the profile of the signed-in user (needed by the Authenticator). Both the JupyterHub's Authenticator and Spawner authenticate themselves with Azure Active Directory using this SP.
 
-Later on, if you want to see your app (e.g. to revoke permissions, or update the callback URL), you can find it here [https://myapps.microsoft.com/](https://myapps.microsoft.com/).  
+Later on, if you want to see your app (e.g. to revoke permissions, or update the callback URL), you can find it here [https://myapps.microsoft.com/](https://myapps.microsoft.com/).
 
 ### Running a deployment
 To launch a JupyterHub server:
@@ -50,3 +50,14 @@ If you want to create a new `jupyterhub_config.py` file, you can generate one wi
 Then set the following option to use the AML spawner:
 
 `c.JupyterHub.spawner_class = 'aml_jupyterhub.aml_spawner.AMLSpawner'`
+
+
+## Naming (and other) conventions
+
+It is desirable to make this deployment as user-friendly as possible, and also make use of cloud-agnostic concepts in the user-facing side (i.e. refer to "Projects" as opposed to Azure-specific terms "Resource Groups" or "Workspaces").
+Behind the scenes, the following mapping is applied:
+
+ * One Project will be correspond to one Azure Resource Group, and that Resource Group will contain one AML Workspace.  Both the Resource Group and the Workspace will have the same name as the Project.
+ * The VMs that the user will spin up will be labelled "Small", "Medium", "Large", or "GPU", and these are mapped to sizes of Azure VMs available in the same Azure region of the Resource Group.
+ * The *name* of this VM (the Compute Instance) needs to be unique in the region, but we also want it to be deterministic for a given user/project/VM size.  There is also a limit of 24 characters on the Compute Instance name.  We therefore concatenate the username, the project name, and the VM size, take an MD5 hash, and use the first 24 characters of this as the Compute Instance name.
+ * *TEMPORARY* When offering the user a choice of Project (i.e. Resource Group), the app can currently see all Resource Groups in the Subscription.   We want to filter this list to only include the Resource Groups on which the user has certain Roles.   As a temporary measure, we are instead filtering this list to only show Resource Groups that have "Pangeo" in their name.
