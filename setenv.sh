@@ -12,17 +12,12 @@ source .env
 
 set +o allexport
 
-# Create resource group if it does not exist
-if ! `az group exists -n $RESOURCE_GROUP`
-    then az group create -l $LOCATION -n $RESOURCE_GROUP
-fi
-
-# Create a Service Principal with contributor role on resource group
+# Create a Service Principal with contributor role
 SP_FILENAME=".az-sp-$SERVICE_PRINCIPAL_NAME.json"
 
 az ad sp create-for-rbac --name  $SERVICE_PRINCIPAL_NAME \
                          --role contributor \
-                         --scopes "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP" \
+                         --scopes "/subscriptions/${SUBSCRIPTION_ID}" \
                          --sdk-auth > $SP_FILENAME
 
 # Export Tenant ID, Client ID, and Client Secret
@@ -43,4 +38,3 @@ az ad app permission grant --id=$AAD_CLIENT_ID \
 az ad app update --id=$AAD_CLIENT_ID \
                  --reply-urls="https://$HOST/hub/oauth_callback"
 set +x
-
