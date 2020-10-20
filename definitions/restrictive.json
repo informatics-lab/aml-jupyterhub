@@ -1,0 +1,10 @@
+{
+    "Name": "Data Scientist Restrictive",
+    "IsCustom": true,
+    "Description": "Only one action.",
+    "Actions": ["Microsoft.MachineLearningServices/workspaces/computes/applicationaccess/action"],
+    "NotActions": [],
+    "AssignableScopes": [
+        "/subscriptions/1fedcbc3-e156-45f5-a034-c89c2fc0ac61"
+    ]
+}
