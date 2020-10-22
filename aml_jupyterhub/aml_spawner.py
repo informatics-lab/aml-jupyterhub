@@ -230,7 +230,7 @@ class AMLSpawner(Spawner):
         except ComputeTargetException:
             self._add_event(f"Creating compute instance {self.compute_instance_name}", 15)
             # Create CI provisioned on behalf of another user - Enabling SSH is not allowed in this case.
-            instance_config = ComputeInstance.provisioning_configuration(vm_size="Standard_DS1_v2",
+            instance_config = ComputeInstance.provisioning_configuration(vm_size=self.vm_size,
                                                                          assigned_user_object_id=self.environment['USER_OID'],
                                                                          assigned_user_tenant_id=self.tenant_id)
             self.compute_instance = ComputeInstance.create(self.workspace,
