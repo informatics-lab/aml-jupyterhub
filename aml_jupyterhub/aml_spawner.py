@@ -74,10 +74,6 @@ class AMLSpawner(Spawner):
         self.subscription_id = os.environ['SUBSCRIPTION_ID']
         self.location = os.environ['LOCATION']
 
-#        self.resource_group_name = os.environ['RESOURCE_GROUP']
-        self.default_CI_name = self._make_safe_for_compute_name(
-            self.user.escaped_name + os.environ['SPAWN_COMPUTE_INSTANCE_SUFFIX'])
-
         self.tenant_id = os.environ["AAD_TENANT_ID"]
         self.client_id = os.environ["AAD_CLIENT_ID"]
         self.client_secret = os.environ["AAD_CLIENT_SECRET"]

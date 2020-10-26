@@ -26,6 +26,10 @@ A simple way to expose your local server to the public internet is to use [ngrok
 ```
 ./ngrok http 8000
 ```
+or, when JupyterHub is running with SSL encryption,
+```
+./ngrok http https://localhost:8000
+```
 and it will provide a "Forwarding" URL that looks like `https://<some_hex_string>.ngrok.io` from which you (or anyone else) can access whatever is running on `localhost:8000` (which will be our Jupyterhub spawner).
 You can then add this forwarding URL, minus the "https://" to the `HOST` value in the `.env` file.
 

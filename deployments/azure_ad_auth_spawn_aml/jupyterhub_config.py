@@ -26,3 +26,11 @@ c.JupyterHub.spawner_class = 'aml_jupyterhub.aml_spawner.AMLSpawner'
 # c.JupyterHub.shutdown_on_logout = True
 c.JupyterHub.allow_named_servers = True
 c.JupyterHub.redirect_to_server = False
+
+try:
+    c.JupyterHub.ssl_cert = os.environ['SSL_CERT']
+    c.JupyterHub.ssl_key = os.environ['SSL_KEY']
+    # c.JupyterHub.port = 443
+except:
+    print("JupyterHub is running without SSL encryption!")
+c.JupyterHub.cleanup_servers = False

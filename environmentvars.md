@@ -1,13 +1,16 @@
 # Environmental Variables
 Following the instructions in [README](https://github.com/informatics-lab/aml-jupyterhub/tree/master/README.md), copy the file `env.template` to `.env` and fill in the variables:
 
-## Current mandatory variables
+## Mandatory variables
 * SUBSCRIPTION_ID - in the [Azure portal](https://portal.azure.com) you can click on "Subscriptions", and find the ID (the long hex string) for the one you want.
 * LOCATION - the Azure region where the resources are located, e.g. "uksouth", or "westeurope".
-* SPAWN_TO_COMPUTE_INSTANCE_SUFFIX - suffix will be appended to the name of the Compute Instance that is created.
 * SERVICE_PRINCIPAL_NAME - Name of the service principal that will represent the JupyterHub application in your current Azure AD tenant.
-* RESOURCE_GROUP - the name of the Azure Resource Group containing the resources used here. If it does not exist it will be created automatically (in the [Azure portal](https://portal.azure.com) - search for "Resource Groups").
 * HOST - The host name where this app is hosted (e.g. 'localhost:8888', 'd04091ec4cc6.ngrok.io', 'hub.mydomain.co.uk'). When authenticating with Azure Active Directory this should be an URL accessible to azure (i.e. not just `localhost` - check the ["Expose a local server"](README.md#expose-a-local-server) section for more details)
+
+## Optional variables
+It is **highly reccomended** to run JupyterHub using SSL encryption. If there is no other SSL termination obtain a trusted SSL certificate or create a self-signed certificate and specify the key and certificate locations:
+* SSL_KEY - Path to SSL key file
+* SSL_CERT - Path to SSL certificate file
 
 ## Authentication variables
 The following variables are are used to authenticate the app with Azure Active Directory. Previously, these had to be set up manually, by checking their values on Azure portal. The current implementation just requires the user to source the [`setenv.sh`](setenv.sh) script before launching the JupyterHub server - it automates the creation of a Service Principal and retrieves these values from the SP details.
