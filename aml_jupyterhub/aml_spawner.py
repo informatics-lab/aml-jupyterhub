@@ -14,8 +14,10 @@ from jupyterhub.crypto import decrypt
 
 from async_generator import async_generator, yield_
 
+from azure.identity import ClientSecretCredential
 from azure.common.credentials import ServicePrincipalCredentials
 from azure.mgmt.resource import ResourceManagementClient
+from azure.mgmt.compute import ComputeManagementClient
 
 from azureml.core import Workspace
 from azureml.core.authentication import ServicePrincipalAuthentication
@@ -27,12 +29,11 @@ from . import redirector
 URL_REGEX = re.compile(r'\bhttps://[^ ]*')
 CODE_REGEX = re.compile(r'\b[A-Z0-9]{9}\b')
 VM_SIZES = {
-    "uksouth": {
-        "Small ($)": "Standard_DS1_v2",
-        "Medium ($$)": "Standard_DS3_v2",
-        "Large ($$$)": "Standard_DS5_v2",
-        "GPU ($$$)": "Standard_NC6"
-    }
+    "Small ($)": ["Standard_DS1_v2"],
+    "Medium ($$)": ["Standard_DS3_v2"],
+    "Large ($$$)": ["Standard_DS5_v2"],
+    "GPU ($$$)": ["Standard_NC6"]
+
 }
 
 class AMLSpawner(Spawner):
@@ -78,6 +79,10 @@ class AMLSpawner(Spawner):
         self.client_id = os.environ["AAD_CLIENT_ID"]
         self.client_secret = os.environ["AAD_CLIENT_SECRET"]
 
+        self.cred = ClientSecretCredential(
+            tenant_id=self.tenant_id,
+            client_id=self.client_id,
+            client_secret=self.client_secret)
         self.sp_cred = ServicePrincipalCredentials(
             tenant=self.tenant_id,
             client_id=self.client_id,
@@ -89,6 +94,10 @@ class AMLSpawner(Spawner):
         self.res_mgmt_client = ResourceManagementClient(
             self.sp_cred,
             self.subscription_id)
+        self.compute_mgmt_client = ComputeManagementClient(
+            self.cred,
+            self.subscription_id)
+        self.available_vm_sizes = self._available_vm_sizes()
 
 
     def _filter_rg_names(self, rg_list):
@@ -113,10 +122,35 @@ class AMLSpawner(Spawner):
         return "ci-"+output_hash.hexdigest()[:21]
 
 
+    def _vm_sizes_per_region(self, region):
+        """
+        Return a list of VM sizes for the selected region.
+        """
+        filter_string = f"location eq '{region}'"
+        skus = self.compute_mgmt_client.resource_skus.list(filter=filter_string)
+        vm_sizes = [sku.name for sku in skus if sku.resource_type=="virtualMachines"]
+        return vm_sizes
+
+
+    def _available_vm_sizes(self):
+        """
+        We have a global dict VM_SIZES containing a list of potential "Small", "Medium",...
+        VM sizes.  Get the list of available VM sizes from the Azure SDK, and see
+        """
+        available_vm_sizes = {}
+        vms_for_region = self._vm_sizes_per_region(self.location)
+        for human_readable_size, vm_list in VM_SIZES.items():
+            for vm in vm_list:
+                if vm in vms_for_region:
+                    available_vm_sizes[human_readable_size] = vm
+                    break
+        return available_vm_sizes
+
+
     def _options_form_default(self):
         rg_names = [rg.as_dict()["name"] for rg in self.res_mgmt_client.resource_groups.list()]
         filtered_rg_names = self._filter_rg_names(rg_names)
-        vm_sizes = ["Small ($)", "Medium ($$)", "Large ($$$)", "GPU ($$$)"]
+        vm_sizes = self.available_vm_sizes.keys()
         project_opt = '\n'.join([f"<option value=\"{rg}\">{rg}</option>" for rg in filtered_rg_names])
         vm_size_opt = '\n'.join([f"<option value=\"{vm}\">{vm}</option>" for vm in vm_sizes])
         return f"""
@@ -143,7 +177,7 @@ class AMLSpawner(Spawner):
         self.workspace_name = rg_selected
         # VM size - look up in a dict what "Small", "Medium" etc. are.
         size_selected = formdata.get('vm_select')[0]
-        self.vm_size = VM_SIZES[self.location][size_selected]
+        self.vm_size = self.available_vm_sizes[size_selected]
         # CI name - workspace name + Small/Medium/Large
         self.compute_instance_name = self._construct_ci_name()
 
@@ -226,6 +260,7 @@ class AMLSpawner(Spawner):
         except ComputeTargetException:
             self._add_event(f"Creating compute instance {self.compute_instance_name}", 15)
             # Create CI provisioned on behalf of another user - Enabling SSH is not allowed in this case.
+            self.log.info(f"Creating VM of size {self.vm_size}")
             instance_config = ComputeInstance.provisioning_configuration(vm_size=self.vm_size,
                                                                          assigned_user_object_id=self.environment['USER_OID'],
                                                                          assigned_user_tenant_id=self.tenant_id)
