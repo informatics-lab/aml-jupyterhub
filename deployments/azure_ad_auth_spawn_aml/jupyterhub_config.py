@@ -10,6 +10,8 @@ from oauthenticator.azuread import AzureAdOAuthenticator
 
 c.Application.log_level = 'DEBUG'
 
+c.Authenticator.admin_users = {os.environ['JUPYTERHUB_ADMIN']}
+
 c.JupyterHub.authenticator_class = AzureAdOAuthenticator
 
 c.AzureAdOAuthenticator.enable_auth_state = True
@@ -20,3 +22,15 @@ c.AzureAdOAuthenticator.tenant_id = os.environ.get('AAD_TENANT_ID') # Not necess
 
 # The class to use for spawning single-user servers.
 c.JupyterHub.spawner_class = 'aml_jupyterhub.aml_spawner.AMLSpawner'
+
+# c.JupyterHub.shutdown_on_logout = True
+c.JupyterHub.allow_named_servers = True
+c.JupyterHub.redirect_to_server = False
+
+try:
+    c.JupyterHub.ssl_cert = os.environ['SSL_CERT']
+    c.JupyterHub.ssl_key = os.environ['SSL_KEY']
+    # c.JupyterHub.port = 443
+except:
+    print("JupyterHub is running without SSL encryption!")
+c.JupyterHub.cleanup_servers = False

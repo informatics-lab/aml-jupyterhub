@@ -5,7 +5,7 @@ import time
 import datetime
 import re
 import tempfile
-import base64
+import hashlib
 import asyncio
 
 from traitlets import Unicode, Integer, default, Bool
@@ -13,6 +13,9 @@ from jupyterhub.spawner import Spawner
 from jupyterhub.crypto import decrypt
 
 from async_generator import async_generator, yield_
+
+from azure.common.credentials import ServicePrincipalCredentials
+from azure.mgmt.resource import ResourceManagementClient
 
 from azureml.core import Workspace
 from azureml.core.authentication import ServicePrincipalAuthentication
@@ -23,7 +26,14 @@ from . import redirector
 
 URL_REGEX = re.compile(r'\bhttps://[^ ]*')
 CODE_REGEX = re.compile(r'\b[A-Z0-9]{9}\b')
-
+VM_SIZES = {
+    "uksouth": {
+        "Small ($)": "Standard_DS1_v2",
+        "Medium ($$)": "Standard_DS3_v2",
+        "Large ($$$)": "Standard_DS5_v2",
+        "GPU ($$$)": "Standard_NC6"
+    }
+}
 
 class AMLSpawner(Spawner):
     """
@@ -64,19 +74,79 @@ class AMLSpawner(Spawner):
         self.subscription_id = os.environ['SUBSCRIPTION_ID']
         self.location = os.environ['LOCATION']
 
-        self.resource_group_name = os.environ['RESOURCE_GROUP']
-        self.workspace_name = os.environ['SPAWN_TO_WORK_SPACE']
-        self.compute_instance_name = self._make_safe_for_compute_name(
-            self.user.escaped_name + os.environ['SPAWN_COMPUTE_INSTANCE_SUFFIX'])
-
         self.tenant_id = os.environ["AAD_TENANT_ID"]
         self.client_id = os.environ["AAD_CLIENT_ID"]
         self.client_secret = os.environ["AAD_CLIENT_SECRET"]
 
+        self.sp_cred = ServicePrincipalCredentials(
+            tenant=self.tenant_id,
+            client_id=self.client_id,
+            secret=self.client_secret)
         self.sp_auth = ServicePrincipalAuthentication(
             tenant_id=self.tenant_id,
             service_principal_id=self.client_id,
             service_principal_password=self.client_secret)
+        self.res_mgmt_client = ResourceManagementClient(
+            self.sp_cred,
+            self.subscription_id)
+
+
+    def _filter_rg_names(self, rg_list):
+        """
+        We will want to only display Resource Groups that the user has permissions on.
+        For now, just do simple filter on name.
+        """
+        return [rg for rg in rg_list if "Pangeo" in rg]
+
+
+    def _construct_ci_name(self):
+        """
+        CI names need to be unique per region, but we want the same user
+        to be returned the same CI on the same project if they request that VM size
+        again.
+        The CI name also can't be more than 24 characters long.
+        So we put the username, project name, and VM size together, then take
+        an md5 hash, and use the first 24 characters as the CI name.
+        """
+        input_str = self.user.name + self.workspace_name + self.vm_size
+        output_hash = hashlib.md5(input_str.encode("utf-8"))
+        return "ci-"+output_hash.hexdigest()[:21]
+
+
+    def _options_form_default(self):
+        rg_names = [rg.as_dict()["name"] for rg in self.res_mgmt_client.resource_groups.list()]
+        filtered_rg_names = self._filter_rg_names(rg_names)
+        vm_sizes = ["Small ($)", "Medium ($$)", "Large ($$$)", "GPU ($$$)"]
+        project_opt = '\n'.join([f"<option value=\"{rg}\">{rg}</option>" for rg in filtered_rg_names])
+        vm_size_opt = '\n'.join([f"<option value=\"{vm}\">{vm}</option>" for vm in vm_sizes])
+        return f"""
+        <h2>Welcome {self.user.name}.</h2>
+        <div class="form-group">
+            <label for="proj_select">Select a project:</label>
+            <select name="rg_select" class="form-control">
+                {project_opt}
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="vm_select">Select the size for your Virtual Machine:</label>
+            <select name="vm_select" class="form-control">
+                {vm_size_opt}
+            </select>
+        </div>
+        """
+
+    def options_from_form(self, formdata):
+        # Resource group name
+        rg_selected = formdata.get('rg_select')[0]
+        self.resource_group_name = rg_selected
+        # Workspace name will be the same as resource group name (=="project name")
+        self.workspace_name = rg_selected
+        # VM size - look up in a dict what "Small", "Medium" etc. are.
+        size_selected = formdata.get('vm_select')[0]
+        self.vm_size = VM_SIZES[self.location][size_selected]
+        # CI name - workspace name + Small/Medium/Large
+        self.compute_instance_name = self._construct_ci_name()
+
 
     def _start_recording_events(self):
         self._events = []
@@ -126,17 +196,20 @@ class AMLSpawner(Spawner):
         return state, errors
 
     def _get_workspace(self):
-        try:
-            self.workspace = Workspace(workspace_name=self.workspace_name,
-                                       subscription_id=self.subscription_id,
-                                       resource_group=self.resource_group_name,
-                                       auth=self.sp_auth)
-            self.log.info(f"Using workspace: {self.workspace_name}.")
-            self._add_event(f"Using workspace: {self.workspace_name}.", 10)
-        except ProjectSystemException:
-            self.log.error(f"Workspace {self.workspace_name} not found!")
-            self._add_event(f"Workspace {self.workspace_name} not found!", 1)
-            raise
+        self.log.info(f"Setting workspace {self.workspace_name}.")
+        self._add_event(f"Setting workspace {self.workspace_name}", 1)
+        self.workspace = Workspace.create(name=self.workspace_name,
+                                            subscription_id=self.subscription_id,
+                                            resource_group=self.resource_group_name,
+                                            create_resource_group=False,
+                                            location=self.location,
+                                            sku='enterprise',
+                                            show_output=False,
+                                            exist_ok=True,
+                                            auth=self.sp_auth)
+        self.log.info(f"Using workspace: {self.workspace_name}.")
+        self._add_event(f"Using workspace: {self.workspace_name}.", 10)
+
 
     def _set_up_compute_instance(self):
         """
@@ -152,9 +225,8 @@ class AMLSpawner(Spawner):
             self._add_event(f"Compute instance {self.compute_instance_name} already exists", 20)
         except ComputeTargetException:
             self._add_event(f"Creating compute instance {self.compute_instance_name}", 15)
-            instance_config = ComputeInstance.provisioning_configuration(vm_size="Standard_DS1_v2",
-                                                                        #  ssh_public_access=True,
-                                                                        #  admin_user_ssh_public_key=os.environ.get('SSH_PUB_KEY'),
+            # Create CI provisioned on behalf of another user - Enabling SSH is not allowed in this case.
+            instance_config = ComputeInstance.provisioning_configuration(vm_size=self.vm_size,
                                                                          assigned_user_object_id=self.environment['USER_OID'],
                                                                          assigned_user_tenant_id=self.tenant_id)
             self.compute_instance = ComputeInstance.create(self.workspace,

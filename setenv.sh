@@ -1,30 +1,23 @@
 #!/bin/bash
 
 set -o allexport -x
-# Export all variables in `.env` file
-source .env
+
+# Specify JupyterHub admin user
+JUPYTERHUB_ADMIN=$(az ad signed-in-user show | jq -r '.displayName')
 # Set JUPYTERHUB_CRYPT_KEY to persist users information in auth_state
 JUPYTERHUB_CRYPT_KEY=$(openssl rand -hex 32)
+
+# Export all variables in `.env` file
+source .env
+
 set +o allexport
 
-# Create resource group if it does not exist
-if ! `az group exists -n $RESOURCE_GROUP`
-    then az group create -l $LOCATION -n $RESOURCE_GROUP
-fi
+# Create a Service Principal with contributor role
+SP_FILENAME=".az-sp-$SERVICE_PRINCIPAL_NAME.json"
 
-# Create workspace if it does not exist
-az ml workspace create --workspace-name $SPAWN_TO_WORK_SPACE \
-                       --resource-group $RESOURCE_GROUP \
-                       --location $LOCATION \
-                       --exist-ok
-
-# Create a Service Principal with contributor role on resource group
-SP_NAME='pangeong-tmp-sp'
-SP_FILENAME=".$SP_NAME.json"
-
-az ad sp create-for-rbac --name  $SP_NAME \
+az ad sp create-for-rbac --name  $SERVICE_PRINCIPAL_NAME \
                          --role contributor \
-                         --scopes "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP" \
+                         --scopes "/subscriptions/${SUBSCRIPTION_ID}" \
                          --sdk-auth > $SP_FILENAME
 
 # Export Tenant ID, Client ID, and Client Secret
@@ -32,8 +25,6 @@ set -o allexport
 AAD_TENANT_ID=$(jq -r '.tenantId' $SP_FILENAME)
 AAD_CLIENT_ID=$(jq -r '.clientId' $SP_FILENAME)
 AAD_CLIENT_SECRET=$(jq -r '.clientSecret' $SP_FILENAME)
-
-# rm $SP_FILENAME
 set +o allexport
 
 # Add Azure Active Directory Graph delegated permission `User.Read`
@@ -46,6 +37,4 @@ az ad app permission grant --id=$AAD_CLIENT_ID \
 # Set reply-URL
 az ad app update --id=$AAD_CLIENT_ID \
                  --reply-urls="https://$HOST/hub/oauth_callback"
-
 set +x
-
