@@ -66,10 +66,16 @@ class AMLSpawner(Spawner):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
+        self.log.debug(f"Spawner __init__()")
+        self.workspace_name = None
         self.workspace = None
+        self.compute_instance_name = None
         self.compute_instance = None
+        self.vm_size = None
+        self.resource_group_name = None
         self._application_urls = None
         self.redirect_server = None
+
 
         self.subscription_id = os.environ['SUBSCRIPTION_ID']
         self.location = os.environ['LOCATION']
@@ -113,7 +119,11 @@ class AMLSpawner(Spawner):
         return "ci-"+output_hash.hexdigest()[:21]
 
 
-    def _options_form_default(self):
+    # previously _options_form_default(self):
+    async def options_form(self, spawner):
+        self.log.debug(f"Spawner options_form()")
+        self.log.debug(f"Spawner options_form() workspace_name: {self.workspace_name} ")
+
         rg_names = [rg.as_dict()["name"] for rg in self.res_mgmt_client.resource_groups.list()]
         filtered_rg_names = self._filter_rg_names(rg_names)
         vm_sizes = ["Small ($)", "Medium ($$)", "Large ($$$)", "GPU ($$$)"]
@@ -196,6 +206,8 @@ class AMLSpawner(Spawner):
         return state, errors
 
     def _get_workspace(self):
+        self.log.debug(f"Spawner _get_workspace()")
+
         self.log.info(f"Setting workspace {self.workspace_name}.")
         self._add_event(f"Setting workspace {self.workspace_name}", 1)
         self.workspace = Workspace.create(name=self.workspace_name,
@@ -216,6 +228,8 @@ class AMLSpawner(Spawner):
         Set up an AML compute instance for the workspace. The compute instance is responsible
         for running the Python kernel and the optional JupyterLab instance for the workspace.
         """
+        self.log.debug(f"Spawner _set_up_compute_instance()")
+
         # Verify that cluster does not exist already.
         try:
             self.compute_instance = ComputeInstance(workspace=self.workspace,
@@ -236,6 +250,8 @@ class AMLSpawner(Spawner):
             self._add_event(f"Created compute instance {self.compute_instance_name}.", 20)
 
     def _start_compute_instance(self):
+        self.log.debug(f"Spawner _start_compute_instance()")
+
         stopped_state = "stopped"
         state, _ = self._poll_compute_setup()
         self.log.info(f"Compute instance state is {state}.")
@@ -300,10 +316,16 @@ class AMLSpawner(Spawner):
         self._stop_compute_instance()
         self._stop_redirect()
 
-    def get_url(self):
+    async def get_url(self):
         """An AzureML compute instance knows how to get its JupyterLab instance URL, so expose it."""
-        key = "Jupyter Lab"
-        return None if self.application_urls is None else self.application_urls[key]
+        self.log.debug(f"Spawner get_url()")
+        self.log.debug(f"Spawner get_url() - server: {self.server}")
+        url = self.server.url
+        # url = None
+        # if self.application_urls:
+        #     url = self.application_urls["Jupyter Lab"]
+        self.log.debug(f"Spawner get_url() -> {url}")
+        return url
 
     @ async_generator
     async def progress(self):
@@ -318,6 +340,9 @@ class AMLSpawner(Spawner):
 
     async def start(self):
         """Start (spawn) AzureML resouces."""
+        self.log.debug(f"Spawner start()")
+        self.log.debug(f"Spawner workspace: {self.workspace}")
+
         try:
             self._start_recording_events()
             self._add_event("Initializing...", 0)
@@ -331,8 +356,9 @@ class AMLSpawner(Spawner):
             await self._wait_for_target_state(target_state)
 
             url = self.application_urls["Jupyter Lab"]
-            route = redirector.RedirectServer.get_existing_redirect(url)
-            if route:
+            port = redirector.RedirectServer.get_existing_redirect(url)
+            if port:
+                route = ("0.0.0.0", port)
                 self._add_event(f"Existing route to compute instance found.", 95)
             else:
                 self._add_event(f"Creating route to compute instance.", 91)
@@ -340,8 +366,8 @@ class AMLSpawner(Spawner):
                 self.redirect_server.start()
                 await asyncio.sleep(1)
                 route = self.redirect_server.route
-                self._add_event(f"Route to compute instance created.", 95)
 
+            self._add_event(f"Route to compute instance: {route} -> {url}", 95)
             self._add_event(f"Set up complete. Prepare for redirect...", 100)
 
             return route
@@ -350,6 +376,7 @@ class AMLSpawner(Spawner):
 
     async def stop(self, now=False):
         """Stop and terminate all spawned AzureML resources."""
+        self.log.debug(f"Spawner stop()")
         self._tear_down_resources()
 
         self._stop_redirect()
@@ -372,8 +399,10 @@ class AMLSpawner(Spawner):
 
         """
         result = None
+        self.log.debug(f"Spawner poll()")
         if self.compute_instance is not None:
             status, errors = self._poll_compute_setup()
+            self.log.debug(f"Polling Spawner - CI: {status}")
             if status.lower() not in self._vm_started_states:
                 if status.lower() in self._vm_stopped_states:
                     # Assign code 3 == instance stopped.
@@ -390,19 +419,48 @@ class AMLSpawner(Spawner):
         else:
             # Compute has not started, so treat as if not running.
             result = 0
+        self.log.debug(f"Polling Spawner - result: {result}")
         return result
 
-    # def get_state(self):
-    #     """Get the state of our spawned AzureML resources so that we can persist over restarts."""
-    #     state = super().get_state()
-    #     state["workspace_name"] = self.workspace_name
-    #     state["compute_instance_name"] = self.compute_instance_name
-    #     return state
+    def get_state(self):
+        """Get the state of our spawned AzureML resources so that we can persist over restarts."""
+        self.log.debug(f"Spawner get_state()")
+        state = super().get_state()
+        state.update({"workspace_name":         self.workspace_name,
+                      "compute_instance_name":  self.compute_instance_name,
+                      "vm_size":                self.vm_size,
+                      "resource_group_name":    self.resource_group_name
+                     })
+        self.log.debug(f"get_state() -> {state}")
+        self.log.debug(f"Spawner get_state() - server: {self.server}")
+        return state
 
-    # def load_state(self, state):
-    #     """Load previously-defined state so that we can resume where we left off."""
-    #     super().load_state(state)
-    #     if "workspace_name" in state:
-    #         self.workspace_name = state["workspace_name"]
-    #     if "compute_instance_name" in state:
-    #         self.compute_instance_name = state["compute_instance_name"]
+    def load_state(self, state):
+        """Load previously-defined state so that we can resume where we left off."""
+        self.log.debug(f"Spawner load_state()")
+        self.log.debug(f"Spawner load_state() - state: {state}")
+        self.log.debug(f"Spawner load_state() - server: {self.server}")
+
+        super().load_state(state)
+
+        if all(key in state for key in ["workspace_name", "compute_instance_name", "vm_size", "resource_group_name"]):
+            self.workspace_name = state["workspace_name"]
+            self.compute_instance_name = state["compute_instance_name"]
+            self.vm_size = state["vm_size"]
+            self.resource_group_name = state["resource_group_name"]
+
+            # This is terribly slow...
+            self._get_workspace()
+            self._set_up_compute_instance()
+
+
+            # Set the redirector with old port -> CI url
+            url = self.application_urls["Jupyter Lab"]
+            port = self.server.port
+            redirector.RedirectServer._redirects[url] = port
+
+            self.redirect_server = redirector.RedirectServer(url)
+            self.redirect_server.start(port)
+            self.log.info(f"Route to compute instance created: {port} -> {url}")
+
+        self.log.debug(f"load_state - data: {str(state.keys())}")

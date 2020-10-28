@@ -30,8 +30,8 @@ class RedirectServer:
 
     @classmethod
     def get_existing_redirect(cls, url):
-        port = cls._redirects.get('port')
-        return port if ("0.0.0.0", port) else None
+        port = cls._redirects.get(url)
+        return port
 
     @classmethod
     def _get_free_port(cls):
@@ -45,10 +45,13 @@ class RedirectServer:
         self.url = redirect_to_url
         super().__init__()
 
-    def start(self):
+    def start(self, port=None):
 
         print('start')
-        self.port = RedirectServer._get_free_port()
+        if port:
+            self.port = port # Dangerous!!!
+        else:
+            self.port = RedirectServer._get_free_port()
         self.server_process = multiprocessing.Process(target=_create_server, args=[self.url, self.port], daemon=True)
         self.server_process.start()
         RedirectServer._redirects[self.url] = self.port
