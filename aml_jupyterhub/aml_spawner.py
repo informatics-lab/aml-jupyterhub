@@ -119,7 +119,8 @@ class AMLSpawner(Spawner):
         """
         input_str = self.user.name + self.workspace_name + self.vm_size
         output_hash = hashlib.md5(input_str.encode("utf-8"))
-        return "ci-"+output_hash.hexdigest()[:21]
+        truncated_username = self.username[:10]
+        return "ci-"+truncated_username+"-"+output_hash.hexdigest()[:8]
 
 
     def _vm_sizes_per_region(self, region):
