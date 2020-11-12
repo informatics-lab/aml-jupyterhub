@@ -14,6 +14,14 @@ AAD_TENANT_ID=${4}
 AAD_CLIENT_ID=${5}
 AAD_CLIENT_SECRET=${6}
 set +o allexport
+
+# install miniconda
+wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/miniconda.sh
+bash ~/miniconda.sh -b -p ~/miniconda
+export PATH=$PATH:/home/${1}/miniconda/bin:
+conda init bash
+source ~/.bashrc
+
 # clone the aml-jupyterhub repo and create the conda environment
 git clone https://github.com/informatics-lab/aml-jupyterhub
 cd aml-jupyterhub
