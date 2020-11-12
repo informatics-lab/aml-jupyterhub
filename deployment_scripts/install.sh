@@ -23,6 +23,7 @@ export PATH=/home/${1}/miniconda/bin:$PATH
 echo "about to do conda init bash"
 /home/${1}/miniconda/bin/conda init bash
 source /home/${1}/.bashrc
+echo $PATH > path1.txt
 
 # clone the aml-jupyterhub repo and create the conda environment
 git clone https://github.com/informatics-lab/aml-jupyterhub
@@ -30,7 +31,9 @@ cd aml-jupyterhub
 /home/${1}/miniconda/bin/conda env create -f env.yaml
 /home/${1}/miniconda/bin/conda activate azml
 # run jupyterhub with our custom spawner
-python -m jupyterhub -f deployments/azure_ad_auth_spawn_aml/jupyterhub_config.py
+echo $PATH > path2.txt
+echo `which python` >> path2.txt
+#python -m jupyterhub -f deployments/azure_ad_auth_spawn_aml/jupyterhub_config.py
 
 #curl https://raw.githubusercontent.com/jupyterhub/the-littlest-jupyterhub/master/bootstrap/bootstrap.py \
 #| sudo python3 - --admin ${1}
