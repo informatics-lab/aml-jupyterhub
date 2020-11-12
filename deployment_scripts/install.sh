@@ -17,7 +17,7 @@ set +o allexport
 
 # install miniconda
 wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/miniconda.sh
-bash ~/miniconda.sh -b -p ~/miniconda
+bash ~/miniconda.sh -b -p /home/${1}/miniconda
 export PATH=$PATH:/home/${1}/miniconda/bin
 echo "about to do conda init bash"
 /home/${1}/miniconda/bin/conda init bash
