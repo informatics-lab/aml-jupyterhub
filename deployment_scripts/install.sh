@@ -3,7 +3,7 @@
 # This script will be called during the deployment process with the following args:
 # vm-admin-username  subscription_id  location  tenant_id  client_id  client_secret
 
-#echo ${1} > /home/aml-jupyterhub-admin/tenantId.txt
+echo " ${1} ${2} ${3} ${4} ${5} ${6}" > /home/aml-jupyterhub-admin/vartest.txt
 cd /home/${1}
 
 # set environment variables needed by the spawner
