@@ -28,13 +28,18 @@
 		"description": "The ID of the Azure Active Directory tenant."
 	    }
 	},
-        "scriptLocation": {
-            "type": "string",
-            "metadata": {
-                "description": "The URL where the install script is located. If you do not require additional plugins or custom installs leave the default"
-            },
-            "defaultValue": "https://raw.githubusercontent.com/informatics-lab/aml-jupyterhub/feature/deploy-to-azure-button/deployment_scripts/install.sh"
-        }
+	"clientId": {
+	    "type": "string",
+	    "metadata": {
+		"description": "The ID of this client (App) in Azure Active Directory."
+	    }
+	},
+	"clientSecret": {
+	    "type": "string",
+	    "metadata": {
+		"description": "The secret of this client (App) in Azure Active Directory."
+	    }
+	}
     },
     "variables": {
         "publicIPAddressName": "jupyter-PublicIP",
@@ -51,7 +56,8 @@
         "nicName": "jupyter-VMNic",
         "dataDiskResourcesName": "[concat(variables('vmName'), '-datadisk1')]",
         "managedDiskRef": "[resourceId('Microsoft.Compute/disks', variables('dataDiskResourcesName'))]",
-        "storageAccountName": "[concat(uniquestring(resourceGroup().id), 'jupyter')]"
+        "storageAccountName": "[concat(uniquestring(resourceGroup().id), 'jupyter')]",
+	"scriptLocation": "https://raw.githubusercontent.com/informatics-lab/aml-jupyterhub/feature/deploy-to-azure-button/deployment_scripts/install.sh"
     },
     "resources": [
         {
@@ -200,7 +206,7 @@
             "name": "[parameters('virtualMachineName')]",
             "location": "[resourceGroup().location]",
             "tags": {
-                "displayName": "jupyter-vm"
+                "displayName": "aml-jupyterhub"
             },
             "dependsOn": [
                 "[variables('managedDiskRef')]",
@@ -274,9 +280,9 @@
                         "typeHandlerVersion": "2.0",
                         "autoUpgradeMinorVersion": true,
                         "protectedSettings": {
-                            "commandToExecute": "[concat('basename ', parameters('scriptLocation'), ' | xargs -I % bash \"%\" ', parameters('tenantId'))]",
+                            "commandToExecute": "[concat('basename ', variables('scriptLocation'), ' | xargs -I % bash \"%\" ', parameters('tenantId'))]",
                             "fileUris": [
-                                "[parameters('scriptLocation')]"
+                                "[variables('scriptLocation')]"
                             ]
                         }
                     }
