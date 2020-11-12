@@ -8,6 +8,7 @@ cd /home/${1}
 
 # set environment variables needed by the spawner
 set -o allexport
+JUPYTERHUB_ADMIN=${1}
 SUBSCRIPTION_ID=${2}
 LOCATION=${3}
 AAD_TENANT_ID=${4}
@@ -19,17 +20,17 @@ set +o allexport
 wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/miniconda.sh
 bash ~/miniconda.sh -b -p /home/${1}/miniconda
 export PATH=/home/${1}/miniconda/bin:$PATH
-#echo "about to do conda init bash"
-#/home/${1}/miniconda/bin/conda init bash
-#source ~/.bashrc
+echo "about to do conda init bash"
+/home/${1}/miniconda/bin/conda init bash
+source /home/${1}/.bashrc
 
 # clone the aml-jupyterhub repo and create the conda environment
-#git clone https://github.com/informatics-lab/aml-jupyterhub
-#cd aml-jupyterhub
-#/home/${1}/miniconda/bin/conda env create -f env.yaml
-#/home/${1}/miniconda/bin/conda activate azml
+git clone https://github.com/informatics-lab/aml-jupyterhub
+cd aml-jupyterhub
+/home/${1}/miniconda/bin/conda env create -f env.yaml
+/home/${1}/miniconda/bin/conda activate azml
 # run jupyterhub with our custom spawner
-#python -m jupyterhub -f deployments/azure_ad_auth_spawn_aml/jupyterhub_config.py
+python -m jupyterhub -f deployments/azure_ad_auth_spawn_aml/jupyterhub_config.py
 
 #curl https://raw.githubusercontent.com/jupyterhub/the-littlest-jupyterhub/master/bootstrap/bootstrap.py \
 #| sudo python3 - --admin ${1}
