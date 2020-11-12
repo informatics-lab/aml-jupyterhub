@@ -19,10 +19,10 @@ set +o allexport
 # install miniconda
 wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/miniconda.sh
 bash ~/miniconda.sh -b -p /home/${1}/miniconda
-export PATH=/home/${1}/miniconda/bin:$PATH
+#export PATH=/home/${1}/miniconda/bin:$PATH
 echo "about to do conda init bash"
 /home/${1}/miniconda/bin/conda init bash
-source /home/${1}/.bashrc
+source /home/${1}/miniconda/etc/profile.d/conda.sh
 echo $PATH > path1.txt
 
 # clone the aml-jupyterhub repo and create the conda environment
