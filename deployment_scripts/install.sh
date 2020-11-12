@@ -19,14 +19,14 @@ set +o allexport
 wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/miniconda.sh
 bash ~/miniconda.sh -b -p ~/miniconda
 export PATH=$PATH:/home/${1}/miniconda/bin:
-conda init bash
-source ~/.bashrc
+/home/${1}/miniconda/bin/conda init bash
+#source ~/.bashrc
 
 # clone the aml-jupyterhub repo and create the conda environment
 git clone https://github.com/informatics-lab/aml-jupyterhub
 cd aml-jupyterhub
-conda env create -y -f env.yaml
-conda activate azml
+/home/${1}/miniconda/bin/conda env create -y -f env.yaml
+/home/${1}/miniconda/bin/conda activate azml
 # run jupyterhub with our custom spawner
 python -m jupyterhub -f deployments/azure_ad_auth_spawn_aml/jupyterhub_config.py
 
