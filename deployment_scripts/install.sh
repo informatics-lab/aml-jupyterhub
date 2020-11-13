@@ -29,8 +29,9 @@ echo $PATH > path1.txt
 git clone https://github.com/informatics-lab/aml-jupyterhub
 cd aml-jupyterhub
 /home/${1}/miniconda/bin/conda env create -f env.yaml
-bash
-/home/${1}/miniconda/bin/conda activate azml
+#bash
+source activate azml
+#/home/${1}/miniconda/bin/conda activate azml
 # run jupyterhub with our custom spawner
 echo $PATH > path2.txt
 echo `which python` >> path2.txt
