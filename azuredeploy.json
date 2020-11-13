@@ -43,7 +43,7 @@
     },
     "variables": {
         "publicIPAddressName": "jupyter-PublicIP",
-        "publicIPAddressType": "Dynamic",
+        "publicIPAddressType": "Static",
         "networkSecurityGroupName": "jupyter-vm-nsg",
         "subnetName": "Subnet",
         "subnet1Prefix": "10.0.0.0/24",
@@ -104,6 +104,19 @@
                             "sourcePortRange": "*",
                             "destinationAddressPrefix": "*",
                             "destinationPortRange": "22"
+                        }
+                    },
+		    {
+                        "name": "Jupyter",
+                        "properties": {
+                            "priority": 350,
+                            "protocol": "TCP",
+                            "access": "Allow",
+                            "direction": "Inbound",
+                            "sourceAddressPrefix": "*",
+                            "sourcePortRange": "*",
+                            "destinationAddressPrefix": "*",
+                            "destinationPortRange": "8000"
                         }
                     }
                 ]
@@ -280,7 +293,7 @@
                         "typeHandlerVersion": "2.0",
                         "autoUpgradeMinorVersion": true,
                         "protectedSettings": {
-                            "commandToExecute": "[concat('basename ', variables('scriptLocation'), ' | xargs -I % bash \"%\" ', parameters('adminUsername'), ' ', subscription().subscriptionId, ' ',resourceGroup().location, ' ',parameters('tenantId'), ' ',parameters('clientId'), ' ',parameters('clientSecret'))]",
+                            "commandToExecute": "[concat('basename ', variables('scriptLocation'), ' | xargs -I % bash \"%\" ', parameters('adminUsername'), ' ', subscription().subscriptionId, ' ',resourceGroup().location, ' ',parameters('tenantId'), ' ',parameters('clientId'), ' ',parameters('clientSecret'), ' ',reference(resourceId('Microsoft.Network/publicIPAddresses',variables('publicIPAddressName'))).IpAddress)]",
                             "fileUris": [
                                 "[variables('scriptLocation')]"
                             ]
