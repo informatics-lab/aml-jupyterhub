@@ -16,6 +16,8 @@ AAD_CLIENT_ID=${5}
 AAD_CLIENT_SECRET=${6}
 set +o allexport
 
+printenv > environment.txt
+
 # install miniconda
 wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/miniconda.sh
 bash ~/miniconda.sh -b -p /home/${1}/miniconda
@@ -40,7 +42,7 @@ echo $PATH > path2.txt
 echo `which python` >> path2.txt
 
 
-#python -m jupyterhub -f deployments/azure_ad_auth_spawn_aml/jupyterhub_config.py
+python -m jupyterhub #-f deployments/azure_ad_auth_spawn_aml/jupyterhub_config.py
 
 #curl https://raw.githubusercontent.com/jupyterhub/the-littlest-jupyterhub/master/bootstrap/bootstrap.py \
 #| sudo python3 - --admin ${1}
