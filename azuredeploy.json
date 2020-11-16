@@ -57,7 +57,7 @@
         "dataDiskResourcesName": "[concat(variables('vmName'), '-datadisk1')]",
         "managedDiskRef": "[resourceId('Microsoft.Compute/disks', variables('dataDiskResourcesName'))]",
         "storageAccountName": "[concat(uniquestring(resourceGroup().id), 'jupyter')]",
-	"installScriptLocation": "https://raw.githubusercontent.com/informatics-lab/aml-jupyterhub/feature/deploy-to-azure-button/deployment_scripts/install.sh",
+	"scriptLocation": "https://raw.githubusercontent.com/informatics-lab/aml-jupyterhub/feature/deploy-to-azure-button/deployment_scripts/install.sh",
 	"runScriptLocation": "https://raw.githubusercontent.com/informatics-lab/aml-jupyterhub/feature/deploy-to-azure-button/deployment_scripts/run.sh"
     },
     "resources": [
@@ -294,9 +294,9 @@
                         "typeHandlerVersion": "2.0",
                         "autoUpgradeMinorVersion": true,
                         "protectedSettings": {
-                            "commandToExecute": "[concat('basename ', variables('installScriptLocation'), ' | xargs -I % bash \"%\" ', parameters('adminUsername'), ' ', subscription().subscriptionId, ' ',resourceGroup().location, ' ',parameters('tenantId'), ' ',parameters('clientId'), ' ',parameters('clientSecret'), ' ',reference(resourceId('Microsoft.Network/publicIPAddresses',variables('publicIPAddressName'))).IpAddress, ' ', variables('runScriptLocation') )]",
+                            "commandToExecute": "[concat('basename ', variables('scriptLocation'), ' | xargs -I % bash \"%\" ', parameters('adminUsername'), ' ', subscription().subscriptionId, ' ',resourceGroup().location, ' ',parameters('tenantId'), ' ',parameters('clientId'), ' ',parameters('clientSecret'), ' ',reference(resourceId('Microsoft.Network/publicIPAddresses',variables('publicIPAddressName'))).IpAddress, ' ', variables('runScriptLocation') )]",
                             "fileUris": [
-                                "[variables('installScriptLocation')]"
+                                "[variables('scriptLocation')]"
                             ]
                         }
                     }
