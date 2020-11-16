@@ -29,4 +29,4 @@ echo `which python` >> path2.txt
 
 
 
-nohup python -m jupyterhub >& jupyterout.txt & #-f deployments/azure_ad_auth_spawn_aml/jupyterhub_config.py & # >& jupyterout.txt &
+nohup python -m jupyterhub -f deployments/azure_ad_auth_spawn_aml/jupyterhub_config.py >& jupyterout.txt &
