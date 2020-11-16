@@ -45,6 +45,7 @@ echo `which python` >> path2.txt
 
 
 nohup python -m jupyterhub -f deployments/azure_ad_auth_spawn_aml/jupyterhub_config.py >& jupyterout.txt &
+nohup python -m jupyterhub -f deployments/azure_ad_auth_spawn_aml/jupyterhub_config.py & # >& jupyterout.txt &
 
 #curl https://raw.githubusercontent.com/jupyterhub/the-littlest-jupyterhub/master/bootstrap/bootstrap.py \
 #| sudo python3 - --admin ${1}
