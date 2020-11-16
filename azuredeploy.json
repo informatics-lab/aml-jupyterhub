@@ -296,7 +296,7 @@
                         "protectedSettings": {
                             "commandToExecute": "[concat('basename ', variables('installScriptLocation'), ' | xargs -I % bash \"%\" ', parameters('adminUsername'), ' ', subscription().subscriptionId, ' ',resourceGroup().location, ' ',parameters('tenantId'), ' ',parameters('clientId'), ' ',parameters('clientSecret'), ' ',reference(resourceId('Microsoft.Network/publicIPAddresses',variables('publicIPAddressName'))).IpAddress, ' ', variables('runScriptLocation') )]",
                             "fileUris": [
-                                "[variables('scriptLocation')]"
+                                "[variables('installScriptLocation')]"
                             ]
                         }
                     }
