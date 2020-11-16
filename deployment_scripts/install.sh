@@ -15,6 +15,7 @@ AAD_TENANT_ID=${4}
 AAD_CLIENT_ID=${5}
 AAD_CLIENT_SECRET=${6}
 HOST=${7}
+JUPYTERHUB_CRYPT_KEY=$(openssl rand -hex 32)
 set +o allexport
 
 printenv > environment.txt
@@ -43,7 +44,7 @@ echo $PATH > path2.txt
 echo `which python` >> path2.txt
 
 
-python -m jupyterhub -f deployments/azure_ad_auth_spawn_aml/jupyterhub_config.py &
+nohup python -m jupyterhub -f deployments/azure_ad_auth_spawn_aml/jupyterhub_config.py >& jupyterout.txt &
 
 #curl https://raw.githubusercontent.com/jupyterhub/the-littlest-jupyterhub/master/bootstrap/bootstrap.py \
 #| sudo python3 - --admin ${1}
