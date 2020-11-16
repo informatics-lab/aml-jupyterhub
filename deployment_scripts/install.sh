@@ -43,7 +43,7 @@ echo $PATH > path2.txt
 echo `which python` >> path2.txt
 
 
-python -m jupyterhub --port 80 -f deployments/azure_ad_auth_spawn_aml/jupyterhub_config.py &
+python -m jupyterhub -f deployments/azure_ad_auth_spawn_aml/jupyterhub_config.py &
 
 #curl https://raw.githubusercontent.com/jupyterhub/the-littlest-jupyterhub/master/bootstrap/bootstrap.py \
 #| sudo python3 - --admin ${1}
