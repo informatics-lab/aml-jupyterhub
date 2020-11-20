@@ -3,6 +3,7 @@
 import os
 import time
 import datetime
+import string
 import re
 import tempfile
 import hashlib
@@ -44,7 +45,6 @@ class AMLSpawner(Spawner):
     "PanzureML" || "Panamel"
 
     """
-
     _vm_started_states = ["starting", "running"]
     _vm_transition_states = ["creating", "updating", "deleting"]
     _vm_stopped_states = ["stopping", "stopped"]
@@ -107,6 +107,16 @@ class AMLSpawner(Spawner):
         """
         return [rg for rg in rg_list if "Pangeo" in rg]
 
+    def _sanitize_and_truncate_username(self, username):
+        """
+        Return the first 10 characters of username, with no spaces or special characters.
+        """
+        # Could probably do with a regex, but diacritics might be fiddly...
+        sanitized_username = ""
+        for character in username.lower():
+            if character in string.ascii_lowercase:
+                sanitized_username += character
+        return sanitized_username[:10]
 
     def _construct_ci_name(self):
         """
@@ -119,7 +129,8 @@ class AMLSpawner(Spawner):
         """
         input_str = self.user.name + self.workspace_name + self.vm_size
         output_hash = hashlib.md5(input_str.encode("utf-8"))
-        return "ci-"+output_hash.hexdigest()[:21]
+        truncated_username = self._sanitize_and_truncate_username(self.user.name)
+        return "ci-"+truncated_username+"-"+output_hash.hexdigest()[:8]
 
 
     def _vm_sizes_per_region(self, region):
