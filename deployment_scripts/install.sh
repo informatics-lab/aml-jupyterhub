@@ -3,6 +3,9 @@
 # This script will be called during the deployment process with the following args:
 # vm-admin-username  subscription_id  location  tenant_id  client_id  client_secret run_script
 
+# redirect port 443 (https) to port 8000
+iptables -t nat -I PREROUTING -p tcp --dport 443 -j REDIRECT --to-ports 8000 
+
 echo " ${1} ${2} ${3} ${4} ${5} ${6} ${7} ${8}" > /home/aml-jupyterhub-admin/vartest.txt
 cd /home/${1}
 
