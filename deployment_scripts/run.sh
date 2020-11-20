@@ -18,7 +18,7 @@ LOCATION=${2}
 AAD_TENANT_ID=${3}
 AAD_CLIENT_ID=${4}
 AAD_CLIENT_SECRET=${5}
-HOST=${6}
+HOST=${6}:8000
 JUPYTERHUB_CRYPT_KEY=$(openssl rand -hex 32)
 set +o allexport
 
