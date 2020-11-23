@@ -9,11 +9,6 @@ echo $PATH > path3.txt
 conda activate azml
 
 # set environment variables needed by the spawner
-set -o allexport -x
-# Specify JupyterHub admin user
-JUPYTERHUB_ADMIN=${USER}
-set +o allexport
-
 source setenv.sh
 
 printenv > environment.txt

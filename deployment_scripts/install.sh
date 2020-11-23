@@ -28,14 +28,15 @@ cd aml-jupyterhub
 
 # write environment vars to .env file
 rm -f .env
-echo "# set environment vars here"
-echo "SUBSCRIPTION_ID=${2}" > .env
+echo "# set environment vars here" > .env
+echo "SUBSCRIPTION_ID=${2}" >> .env
 echo "LOCATION=${3}" >> .env
 echo "SERVICE_PRINCIPAL_NAME=aml_jupyterhub_sp" >> .env
 echo "AAD_TENANT_ID=${4}" >> .env
 echo "AAD_CLIENT_ID=${5}" >> .env
 echo "AAD_CLIENT_SECRET=${6}" >> .env
 echo "HOST=${7}" >> .env
+echo "JUPYTERHUB_ADMIN=${1}" >> .env
 
 # clone the aml-jupyterhub repo and create the conda environment
 chown -R ${1}:${1} /home/${1}/miniconda

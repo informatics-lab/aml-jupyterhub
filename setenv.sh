@@ -3,7 +3,10 @@
 set -o allexport -x
 
 # Specify JupyterHub admin user
-JUPYTERHUB_ADMIN=$(az ad signed-in-user show | jq -r '.displayName')
+if [ -z "${JUPYTERHUB_ADMIN}" ]; then
+    JUPYTERHUB_ADMIN=$(az ad signed-in-user show | jq -r '.displayName');
+fi;
+
 # Set JUPYTERHUB_CRYPT_KEY to persist users information in auth_state
 JUPYTERHUB_CRYPT_KEY=$(openssl rand -hex 32)
 
