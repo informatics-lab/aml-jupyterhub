@@ -22,6 +22,12 @@
 		"description": "Specifies the SSH rsa public key file as a string. Use \"ssh-keygen -t rsa -b 2048\" to generate your SSH key pairs."
 	    }
 	},
+	"domainNameLabel": {
+	    "type": "string",
+	    "metadata": {
+		"description": "The URL for the spawner will be 'domainNameLabel.location.cloudapp.azure.com'."
+	    }
+	},
 	"tenantId": {
 	    "type": "string",
 	    "defaultValue": "Unknown",
@@ -47,6 +53,7 @@
     "variables": {
         "publicIPAddressName": "jupyter-PublicIP",
         "publicIPAddressType": "Static",
+	"domainNameLabel": "[parameters('domainNameLabel')]",
         "networkSecurityGroupName": "jupyter-vm-nsg",
         "subnetName": "Subnet",
         "subnet1Prefix": "10.0.0.0/24",
@@ -153,7 +160,10 @@
             "name": "[variables('publicIpAddressName')]",
             "location": "[resourceGroup().location]",
             "properties": {
-                "publicIpAllocationMethod": "[variables('publicIPAddressType')]"
+                "publicIpAllocationMethod": "[variables('publicIPAddressType')]",
+		"dnsSettings": {
+		    "domainNameLabel": "[variables('domainNameLabel')]"
+		}
             },
             "sku": {
                 "name": "Basic",
