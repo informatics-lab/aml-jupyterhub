@@ -13,7 +13,7 @@
             "type": "string",
 	    "defaultValue": "aml-jupyterhub-admin",
             "metadata": {
-                "description": "Username for admin user."
+                "description": "Username for admin user on the VM."
             }
         },
 	"adminPublicKey": {
@@ -24,20 +24,22 @@
 	},
 	"tenantId": {
 	    "type": "string",
+	    "defaultValue": "Unknown",
 	    "metadata": {
 		"description": "The ID of the Azure Active Directory tenant."
 	    }
 	},
 	"clientId": {
 	    "type": "string",
+	    "defaultValue": "Unknown",
 	    "metadata": {
-		"description": "The ID of this client (App) in Azure Active Directory."
+		"description": "The ID of this client (App) in Azure Active Directory.  If left as 'unknown', and if you have 'owner' role in the subscription, a Service Principal will be created for you."
 	    }
 	},
 	"clientSecret": {
 	    "type": "string",
 	    "metadata": {
-		"description": "The secret of this client (App) in Azure Active Directory."
+		"description": "The secret of this client (App) in Azure Active Directory.  If left as 'unknown', and if you have 'owner' role in the subscription, a Service Principal will be created for you."
 	    }
 	}
     },
