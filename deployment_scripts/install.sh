@@ -14,7 +14,7 @@ echo " ${1} ${2} ${3} ${4} ${5} ${6} ${7} ${8}" > /home/aml-jupyterhub-admin/var
 cd /home/${1}
 
 # redirect port 443 (https) to port 8000
-iptables -t nat -I PREROUTING -p tcp --dport 443 -j REDIRECT --to-ports 8000 
+iptables -t nat -I PREROUTING -p tcp --dport 443 -j REDIRECT --to-ports 8000
 iptables -L -t nat > iptables.txt
 
 
