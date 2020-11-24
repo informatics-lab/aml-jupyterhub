@@ -39,7 +39,7 @@ ln -t /usr/local/bin/ /usr/local/etc/certbot/letsencrypt-auto
 letsencrypt-auto certonly --standalone --agree-tos -m email@example.co.uk --no-eff-email -d $HOST
 # Change permission to makekey and cert visible to jupyterhub
 chown -R ${1}: /etc/letsencrypt/live/ /etc/letsencrypt/archive/
-# chmod 600 /etc/letsencrypt/archive/$HOST/privkey1.pem 
+# chmod 600 /etc/letsencrypt/archive/$HOST/privkey1.pem
 
 # create the conda environment
 cd aml-jupyterhub
@@ -56,6 +56,8 @@ echo "AAD_CLIENT_ID=${5}" >> .env
 echo "AAD_CLIENT_SECRET=${6}" >> .env
 echo "HOST=$HOST" >> .env
 echo "JUPYTERHUB_ADMIN=${1}" >> .env
+# Set JUPYTERHUB_CRYPT_KEY to persist users information in auth_state
+echo "JUPYTERHUB_CRYPT_KEY=$(openssl rand -hex 32)" >> .env
 echo "SSL_KEY=/etc/letsencrypt/live/$HOST/privkey.pem" >> .env
 echo "SSL_CERT=/etc/letsencrypt/live/$HOST/fullchain.pem" >> .env
 
