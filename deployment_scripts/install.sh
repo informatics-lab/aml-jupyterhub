@@ -11,6 +11,7 @@ curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
 
 
 echo " ${1} ${2} ${3} ${4} ${5} ${6} ${7} ${8}" > /home/aml-jupyterhub-admin/vartest.txt
+HOST="${7}.${3}.cloudapp.azure.com"
 cd /home/${1}
 
 # redirect port 443 (https) to port 8000
@@ -31,6 +32,15 @@ echo $PATH > path1.txt
 # clone the aml-jupyterhub repo
 git clone https://github.com/informatics-lab/aml-jupyterhub
 
+# Install certbot/letsencrypt
+git -C /usr/local/etc clone https://github.com/certbot/certbot.git
+ln -t /usr/local/bin/ /usr/local/etc/certbot/letsencrypt-auto
+
+letsencrypt-auto certonly --standalone --agree-tos -m email@example.co.uk --no-eff-email -d $HOST
+# Change permission to makekey and cert visible to jupyterhub
+chown -R ${1}: /etc/letsencrypt/live/ /etc/letsencrypt/archive/
+# chmod 600 /etc/letsencrypt/archive/$HOST/privkey1.pem 
+
 # create the conda environment
 cd aml-jupyterhub
 /home/${1}/miniconda/bin/conda env create -f env.yaml
@@ -44,8 +54,10 @@ echo "SERVICE_PRINCIPAL_NAME=aml_jupyterhub_sp" >> .env
 echo "AAD_TENANT_ID=${4}" >> .env
 echo "AAD_CLIENT_ID=${5}" >> .env
 echo "AAD_CLIENT_SECRET=${6}" >> .env
-echo "HOST=${7}.${3}.cloudapp.azure.com" >> .env
+echo "HOST=$HOST" >> .env
 echo "JUPYTERHUB_ADMIN=${1}" >> .env
+echo "SSL_KEY=/etc/letsencrypt/live/$HOST/privkey.pem" >> .env
+echo "SSL_CERT=/etc/letsencrypt/live/$HOST/fullchain.pem" >> .env
 
 # clone the aml-jupyterhub repo and create the conda environment
 chown -R ${1}:${1} /home/${1}/miniconda
