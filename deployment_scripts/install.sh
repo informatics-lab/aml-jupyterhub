@@ -3,12 +3,20 @@
 # This script will be called during the deployment process with the following args:
 # vm-admin-username  subscription_id  location  tenant_id  client_id  client_secret ip_address run_script
 
+# install jq so we can query json output
+apt update; apt install jq
+
+# install the Azure CLI
+curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+
+
+echo " ${1} ${2} ${3} ${4} ${5} ${6} ${7} ${8}" > /home/aml-jupyterhub-admin/vartest.txt
+cd /home/${1}
+
 # redirect port 443 (https) to port 8000
 iptables -t nat -I PREROUTING -p tcp --dport 443 -j REDIRECT --to-ports 8000 
 iptables -L -t nat > iptables.txt
 
-echo " ${1} ${2} ${3} ${4} ${5} ${6} ${7} ${8}" > /home/aml-jupyterhub-admin/vartest.txt
-cd /home/${1}
 
 # install miniconda
 wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/miniconda.sh
