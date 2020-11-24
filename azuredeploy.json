@@ -307,7 +307,7 @@
                         "typeHandlerVersion": "2.0",
                         "autoUpgradeMinorVersion": true,
                         "protectedSettings": {
-                            "commandToExecute": "[concat('basename ', variables('scriptLocation'), ' | xargs -I % bash \"%\" ', parameters('adminUsername'), ' ', subscription().subscriptionId, ' ',resourceGroup().location, ' ',parameters('tenantId'), ' ',parameters('clientId'), ' ',parameters('clientSecret'), ' ',reference(resourceId('Microsoft.Network/publicIPAddresses',variables('publicIPAddressDnsSettings'))).fqdn, ' ', variables('runScriptLocation') )]",
+                            "commandToExecute": "[concat('basename ', variables('scriptLocation'), ' | xargs -I % bash \"%\" ', parameters('adminUsername'), ' ', subscription().subscriptionId, ' ',resourceGroup().location, ' ',parameters('tenantId'), ' ',parameters('clientId'), ' ',parameters('clientSecret'), ' ',variables('domainNameLabel'), ' ', variables('runScriptLocation') )]",
                             "fileUris": [
                                 "[variables('scriptLocation')]"
                             ]

@@ -1,7 +1,7 @@
 # !/bin/bash
 
 # This script will be called during the deployment process with the following args:
-# vm-admin-username  subscription_id  location  tenant_id  client_id  client_secret ip_address run_script
+# vm-admin-username  subscription_id  location  tenant_id  client_id  client_secret dns_prefix run_script
 
 # install jq so we can query json output
 apt update; apt install jq
@@ -44,7 +44,7 @@ echo "SERVICE_PRINCIPAL_NAME=aml_jupyterhub_sp" >> .env
 echo "AAD_TENANT_ID=${4}" >> .env
 echo "AAD_CLIENT_ID=${5}" >> .env
 echo "AAD_CLIENT_SECRET=${6}" >> .env
-echo "HOST=${7}" >> .env
+echo "HOST=${7}.${3}.cloudapp.azure.com" >> .env
 echo "JUPYTERHUB_ADMIN=${1}" >> .env
 
 # clone the aml-jupyterhub repo and create the conda environment
