@@ -56,7 +56,6 @@ echo "AAD_CLIENT_ID=${5}" >> .env
 echo "AAD_CLIENT_SECRET=${6}" >> .env
 echo "HOST=$HOST" >> .env
 echo "JUPYTERHUB_ADMIN=${1}" >> .env
-# Set JUPYTERHUB_CRYPT_KEY to persist users information in auth_state
 echo "JUPYTERHUB_CRYPT_KEY=$(openssl rand -hex 32)" >> .env
 echo "SSL_KEY=/etc/letsencrypt/live/$HOST/privkey.pem" >> .env
 echo "SSL_CERT=/etc/letsencrypt/live/$HOST/fullchain.pem" >> .env

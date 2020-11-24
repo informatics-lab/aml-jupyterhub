@@ -1,6 +1,6 @@
 #!/bin/bash
 
-cd /home/${USER}/aml-jupyterlab
+cd /home/${USER}/aml-jupyterhub
 echo "about to do conda init bash"
 /home/${USER}/miniconda/bin/conda init bash
 . /home/${USER}/miniconda/etc/profile.d/conda.sh
@@ -9,6 +9,7 @@ echo $PATH > path3.txt
 conda activate azml
 
 # set environment variables needed by the spawner
+set -o allexport
 source .env
 set +o allexport
 
