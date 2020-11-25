@@ -18,12 +18,14 @@
         },
 	"adminPublicKey": {
 	    "type": "string",
+        "defaultValue": "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDpiiajUDBl6A4CdPyVV+bgKEK+UozLDkLS8ghwIpWzCvBaHqLNHentVEF2kqXDS0TdEuk2DTV3QWomZvZkPi/aB7jQP595GW9vPiQcQJJZGCqQRozvKYTIfICBCSpFAvuktjebnthvXHWoqhTYKL89mGQi6czsoQNalsqNSeyZ5cLwnULq9Bh193dT4XN/IKVwwIfQNY0LUp/yXz1Md0PbgfFnRknLnuB0hnUNITka7W/NHh46D7uXf87fbNOLErL22B4uwzEp0apBE4F0F2R8BUCyBbjSEl2rdunO2seQx8XGqOQLUkiW2tFDeTAYZL9Hw8dmTZIEGTIfcusF7rf3 pierocoronica@Pieros-MBP",
 	    "metadata": {
 		"description": "Specifies the SSH rsa public key file as a string. Use \"ssh-keygen -t rsa -b 2048\" to generate your SSH key pairs."
 	    }
 	},
 	"domainNameLabel": {
 	    "type": "string",
+        "defaultValue": "pierotest",
 	    "metadata": {
 		"description": "The URL for the spawner will be 'domainNameLabel.location.cloudapp.azure.com'."
 	    }
@@ -53,7 +55,7 @@
     "variables": {
         "publicIPAddressName": "jupyter-PublicIP",
         "publicIPAddressType": "Static",
-	"domainNameLabel": "[parameters('domainNameLabel')]",
+        "domainNameLabel": "[parameters('domainNameLabel')]",
         "networkSecurityGroupName": "jupyter-vm-nsg",
         "subnetName": "Subnet",
         "subnet1Prefix": "10.0.0.0/24",
@@ -67,8 +69,11 @@
         "dataDiskResourcesName": "[concat(variables('vmName'), '-datadisk1')]",
         "managedDiskRef": "[resourceId('Microsoft.Compute/disks', variables('dataDiskResourcesName'))]",
         "storageAccountName": "[concat(uniquestring(resourceGroup().id), 'jupyter')]",
-	"scriptLocation": "https://raw.githubusercontent.com/informatics-lab/aml-jupyterhub/feature/deploy-to-azure-button/deployment_scripts/install.sh",
-	"runScriptLocation": "https://raw.githubusercontent.com/informatics-lab/aml-jupyterhub/feature/deploy-to-azure-button/deployment_scripts/run.sh"
+        "scriptLocation": "https://raw.githubusercontent.com/informatics-lab/aml-jupyterhub/feature/deploy-to-azure-button/deployment_scripts/install.sh",
+        "runScriptLocation": "https://raw.githubusercontent.com/informatics-lab/aml-jupyterhub/feature/deploy-to-azure-button/deployment_scripts/run.sh",
+        "userAssignedIDName": "uaid-vm",
+        "bootstrapRoleAssignmentId": "[guid(concat(resourceGroup().id, 'contributor'))]",
+        "contributorRoleDefinitionId": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Authorization/roleDefinitions/', '8e3af657-a8ff-443c-a75c-2fe8c4bcb635')]"
     },
     "resources": [
         {
@@ -161,9 +166,9 @@
             "location": "[resourceGroup().location]",
             "properties": {
                 "publicIpAllocationMethod": "[variables('publicIPAddressType')]",
-		"dnsSettings": {
-		    "domainNameLabel": "[variables('domainNameLabel')]"
-		}
+                "dnsSettings": {
+                    "domainNameLabel": "[variables('domainNameLabel')]"
+                }
             },
             "sku": {
                 "name": "Basic",
@@ -228,10 +233,36 @@
             }
         },
         {
+            "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+            "name": "[variables('userAssignedIDName')]",
+            "apiVersion": "2018-11-30",
+            "location": "[resourceGroup().location]"
+        },
+        {
+            "type": "Microsoft.Authorization/roleAssignments",
+            "apiVersion": "2018-09-01-preview",
+            "name": "[variables('bootstrapRoleAssignmentId')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('userAssignedIDName'))]"
+            ],
+            "properties": {
+                "roleDefinitionId": "[variables('contributorRoleDefinitionId')]",
+                "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('userAssignedIDName')), '2018-11-30').principalId]",
+                "scope": "[resourceGroup().id]",
+                "principalType": "ServicePrincipal"
+            }
+        },
+        {
             "type": "Microsoft.Compute/virtualMachines",
             "apiVersion": "2019-07-01",
-            "name": "[parameters('virtualMachineName')]",
+            "name": "[variables('vmName')]",
             "location": "[resourceGroup().location]",
+            "identity": {
+                "type": "userAssigned",
+                "userAssignedIdentities": {
+                    "[resourceID('Microsoft.ManagedIdentity/userAssignedIdentities/',variables('userAssignedIDName'))]": {}
+                    }
+                },
             "tags": {
                 "displayName": "aml-jupyterhub"
             },
@@ -275,23 +306,22 @@
                 "osProfile": {
                     "computerName": "[variables('vmName')]",
                     "adminUsername": "[parameters('adminUsername')]",
-		    "linuxConfiguration": {
-			"disablePasswordAuthentication": true,
-			"ssh": {
-			    "publicKeys": [
-				{
-				    "path": "[concat('/home/', parameters('adminUsername'), '/.ssh/authorized_keys')]",
-				    "keyData": "[parameters('adminPublicKey')]"
-				}
-			    ]
-			}
-
-		    }
-		}
-	    },
-	    "resources": [
+                    "linuxConfiguration": {
+                        "disablePasswordAuthentication": true,
+                        "ssh": {
+                            "publicKeys": [
+                                {
+                                    "path": "[concat('/home/', parameters('adminUsername'), '/.ssh/authorized_keys')]",
+                                    "keyData": "[parameters('adminPublicKey')]"
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            "resources": [
                 {
-		    "type": "Microsoft.Compute/virtualMachines/extensions",
+                    "type": "Microsoft.Compute/virtualMachines/extensions",
                     "apiVersion": "2019-07-01",
                     "name": "[concat(variables('vmName'),'/installscript')]",
                     "location": "[resourceGroup().location]",
@@ -305,12 +335,24 @@
                         "publisher": "Microsoft.Azure.Extensions",
                         "type": "CustomScript",
                         "typeHandlerVersion": "2.0",
+                        "autoUpgradeMinorVersion": true
+                    }
+                },
+                {
+                    "type": "Microsoft.Compute/virtualMachines/extensions",
+                    "name": "[concat(variables('vmName'),'/ManagedIdentityExtensionForLinux')]",
+                    "apiVersion": "2018-06-01",
+                    "location": "[resourceGroup().location]",
+                    "dependsOn": [
+                        "[concat('Microsoft.Compute/virtualMachines/', variables('vmName'))]"
+                    ],
+                    "properties": {
+                        "publisher": "Microsoft.ManagedIdentity",
+                        "type": "ManagedIdentityExtensionForLinux",
+                        "typeHandlerVersion": "1.0",
                         "autoUpgradeMinorVersion": true,
-                        "protectedSettings": {
-                            "commandToExecute": "[concat('basename ', variables('scriptLocation'), ' | xargs -I % bash \"%\" ', parameters('adminUsername'), ' ', subscription().subscriptionId, ' ',resourceGroup().location, ' ',parameters('tenantId'), ' ',parameters('clientId'), ' ',parameters('clientSecret'), ' ',variables('domainNameLabel'), ' ', variables('runScriptLocation') )]",
-                            "fileUris": [
-                                "[variables('scriptLocation')]"
-                            ]
+                        "settings": {
+                            "port": 50342
                         }
                     }
                 }
