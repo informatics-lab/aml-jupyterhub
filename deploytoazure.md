@@ -1,6 +1,6 @@
 ## Using the "Deploy to Azure" button.
 
-The [ARM template](https://docs.microsoft.com/en-us/azure/azure-resource-manager/templates/overview) in the file [azuredeploy.json] makes it easy to deploy a Virtual Machine running the custon Jupyterhub spawner on Azure, by clicking the "Deploy to Azure" button, and then filling out the various fields in the Azure portal.
+The [ARM template](https://docs.microsoft.com/en-us/azure/azure-resource-manager/templates/overview) in the file [azuredeploy.json](azuredeploy.json) makes it easy to deploy a Virtual Machine running the custon Jupyterhub spawner on Azure, by clicking the "Deploy to Azure" button, and then filling out the various fields in the Azure portal.
 However, for this to work, it is necessary to have an "App Registration" in Azure, with the correct set of permissions.   Depending on the privileges you have on the Azure subscription, you may be able to do this yourself.  Otherwise, you will need to ask the administrators of your organization's Azure account to do this.   The following instructions assume that you have the privileges.
 
 ### 1) Create an App Registration
