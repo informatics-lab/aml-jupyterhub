@@ -1,0 +1,47 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "identity": {
+      "type": "string"
+    },
+    "utcValue": {
+      "type": "string",
+      "defaultValue": "[utcNow()]"
+    }
+  },
+  "variables": {
+    "deploymentName": "[concat('runBashWithOutputs', parameters('utcValue'))]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Resources/deploymentScripts",
+      "apiVersion": "2019-10-01-preview",
+      "name": "[variables('deploymentName')]",
+      "location": "[resourceGroup().location]",
+      "kind": "AzureCLI",
+      "identity": {
+        "type": "UserAssigned",
+        "userAssignedIdentities": {
+          "[parameters('identity')]": {
+          }
+        }
+      },
+      "properties": {
+        "forceUpdateTag": "[parameters('utcValue')]",
+        "AzCliVersion": "2.0.80",
+        "timeout": "PT30M",
+        "arguments": "'foo','bar' 'foobar'",
+        "scriptContent": "result=$(az resource list); echo \"arg1 is: $1\"; echo \"arg2 is: $2\"; echo $result | jq -c '{Result: map({id: .id})}' > $AZ_SCRIPTS_OUTPUT_PATH",
+        "cleanupPreference": "OnSuccess",
+        "retentionInterval": "PT1H"
+      }
+    }
+  ],
+  "outputs": {
+    "result": {
+      "value": "[reference(variables('deploymentName')).outputs]",
+      "type": "object"
+    }
+  }
+}
