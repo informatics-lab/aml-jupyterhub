@@ -34,11 +34,11 @@
         "arguments": "'foo','bar' 'foobar'",
         "environmentVariables": [
           {
-            "name": "RESOURCE_GROUP_ID",
+            "name": "SCOPE_ID",
             "secureValue": "[resourceGroup().id]"
           }
         ],
-        "scriptContent": "result=$(az resource list); echo \"arg1 is: $1\"; echo \"arg2 is: $2\"; echo \"RESOURCE_GROUP_ID: ${RESOURCE_GROUP_ID}\"; echo $result | jq -c '{Result: map({id: .id})}' > $AZ_SCRIPTS_OUTPUT_PATH",
+        "scriptContent": "echo $SCOPE_ID; az ad sp create-for-rbac --name http://deployScriptSP --role contributor --scopes \"${SCOPE_ID}\" --sdk-auth",
         "cleanupPreference": "OnSuccess",
         "retentionInterval": "PT1H"
       }
