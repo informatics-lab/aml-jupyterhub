@@ -45,10 +45,10 @@ bash ~/miniconda.sh -b -p /home/${1}/miniconda
 git clone https://github.com/informatics-lab/aml-jupyterhub
 
 # Install certbot/letsencrypt
-git -C /usr/local/etc clone https://github.com/certbot/certbot.git
-ln -t /usr/local/bin/ /usr/local/etc/certbot/letsencrypt-auto
-
-letsencrypt-auto certonly --standalone --agree-tos -m email@example.co.uk --no-eff-email -d $HOST
+snap install core; snap refresh core
+snap install --classic certbot
+ln -s /snap/bin/certbot /usr/bin/certbot
+certbot certonly --standalone --agree-tos -m email@example.co.uk --no-eff-email -d $HOST
 # Change permission to makekey and cert visible to jupyterhub
 chown -R ${USERNAME}: /etc/letsencrypt/live/ /etc/letsencrypt/archive/
 
