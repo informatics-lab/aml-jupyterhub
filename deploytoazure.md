@@ -1,7 +1,10 @@
 ## Using the "Deploy to Azure" button.
 
 The [ARM template](https://docs.microsoft.com/en-us/azure/azure-resource-manager/templates/overview) in the file [azuredeploy.json](azuredeploy.json) makes it easy to deploy a Virtual Machine running the custon Jupyterhub spawner on Azure, by clicking the "Deploy to Azure" button, and then filling out the various fields in the Azure portal.
-However, for this to work, it is necessary to have an "App Registration" in Azure, with the correct set of permissions.   Depending on the privileges you have on the Azure subscription, you may be able to do this yourself.  Otherwise, you will need to ask the administrators of your organization's Azure account to do this.   The following instructions assume that you have the privileges.
+
+However, for this to work, it is necessary to have an "App Registration" in Azure, with the correct set of permissions.   Depending on the privileges you have on the Azure subscription, you may be able to do this yourself.  Otherwise, you will need to ask the administrators of your organization's Azure account to do this.   
+
+The following instructions (steps 1 to 4) assume that you have the necessary privileges.  If you do not, please see the section "What to ask the Azure account administrators for" at the bottom.
 
 ### 1) Create an App Registration
 
@@ -9,9 +12,9 @@ However, for this to work, it is necessary to have an "App Registration" in Azur
  * Select *"+ New registration"*.
  * Give it a NAME (doesn't matter too much what this is, but remember it for the next step), leave the default option for *"Supported account types"* to be only accounts in the same organizational directory, and set the *"Redirect URI"* to be
  ```
- https://<DOMAIN_NAME_LABEL>.<LOCATION>.cloudapp.azure.com/hub/oauth_callback
+ https://DOMAIN_NAME_LABEL.LOCATION.cloudapp.azure.com/hub/oauth_callback
  ```
- where "<LOCATION>" is the Azure region you want to use (e.g. "uksouth", "eastus", ...).  For "<DOMAIN_NAME_LABEL>, choose a (unique for this region) name that will form the first part of the hub's URL.  You will also need to remember this for when you fill out the fields after clicking the "Deploy to Azure" button. Click *"Register"* at the bottom of the screen.
+ where "LOCATION" is the Azure region you want to use (e.g. "uksouth", "eastus", ...).  For "DOMAIN_NAME_LABEL", choose a (unique for this region) name that will form the first part of the hub's URL.  You will also need to remember this for when you fill out the fields after clicking the "Deploy to Azure" button. Click *"Register"* at the bottom of the screen.
 
 ### 2) Give permissions and roles to the app
 
@@ -33,3 +36,21 @@ After the steps above, you should be on the *"Overview"* page of your newly regi
  * Click *"Review + create"* and then *"Create"*.
  * It should take 5-10 minutes for the deployment to complete (most of this is provisioning the VM and running the installation script).
  * When this is done, you can click *"Go to resource group"*, find the Virtual Machine (whose name will be "AML-Jupyterhub" unless you changed it), and clicking on this should take you to its "Overview" page.  Towards the top right, you should see a *"DNS name"*.   Clicking on this will take you to the URL of your Jupyterhub, and hopefully a login page.
+ 
+ ## If you don't have rights to create an "App Registration" yourself, what should you ask your Azure admins for?
+ 
+ You should ask your friendly admins to create an "App Registration" for you.   The information they will need is:
+  * Azure Subscription - what subscription to use for this app.
+  * App name - this can be anything you like.
+  * Required privileges - the app will need a "Service Principal", which has "Contributor" role on the Subscription, and the app needs the "User.Read" role.
+  * Callback URL - this will be https://DOMAIN_NAME_LABEL.LOCATION.cloudapp.azure.com/hub/oauth_callback where DOMAIN_NAME_LABEL is a name you choose yourself (must be unique to the Azure region), and LOCATION is the Azure region (e.g. "uksouth", "westeurope").
+  * You will need them to create a "Client Secret" for the app.
+  
+  Once the admins have created the app registration, they should be able to provide you with the following bits of information, that you can then use to fill out the fields in the form as in Step 3) above:
+   * Client ID - This might also be known as "Object ID".
+   * Client Secret - the "value" of the Secret, not the ID.
+   * Tenant ID - though it is also possible to find this out through other means e.g. `az account show` in the Azure CLI.
+   
+   
+ 
+ 
