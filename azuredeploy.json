@@ -1,0 +1,323 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "virtualMachineName": {
+            "type": "string",
+            "defaultValue": "AML-JupyterHub",
+            "metadata": {
+                "description": "Virtual machine name. Use a meaningful name."
+            }
+        },
+        "adminUsername": {
+            "type": "string",
+	    "defaultValue": "aml-jupyterhub-admin",
+            "metadata": {
+                "description": "Username for admin user on the VM."
+            }
+        },
+	"adminPublicKey": {
+	    "type": "string",
+	    "metadata": {
+		"description": "Specifies the SSH rsa public key file as a string. Use \"ssh-keygen -t rsa -b 2048\" to generate your SSH key pairs."
+	    }
+	},
+	"domainNameLabel": {
+	    "type": "string",
+	    "metadata": {
+		"description": "The URL for the spawner will be 'domainNameLabel.location.cloudapp.azure.com'."
+	    }
+	},
+	"tenantId": {
+	    "type": "string",
+	    "metadata": {
+		"description": "The ID of the Azure Active Directory tenant."
+	    }
+	},
+	"clientId": {
+	    "type": "string",
+	    "metadata": {
+		"description": "The ID of this client (App) in Azure Active Directory."
+	    }
+	},
+	"clientSecret": {
+	    "type": "string",
+	    "metadata": {
+		"description": "The secret of this client (App) in Azure Active Directory."
+	    }
+	}
+    },
+    "variables": {
+        "publicIPAddressName": "jupyter-PublicIP",
+        "publicIPAddressType": "Static",
+	"domainNameLabel": "[parameters('domainNameLabel')]",
+        "networkSecurityGroupName": "jupyter-vm-nsg",
+        "subnetName": "Subnet",
+        "subnet1Prefix": "10.0.0.0/24",
+        "virtualNetworkName": "jupyter-VNET",
+        "addressPrefix": "10.0.0.0/16",
+        "vmName": "[parameters('virtualMachineName')]",
+        "nsgId": "[resourceId(resourceGroup().name, 'Microsoft.Network/networkSecurityGroups', variables('networkSecurityGroupName'))]",
+        "vnetId": "[resourceId(resourceGroup().name, 'Microsoft.Network/virtualNetworks', variables('virtualNetworkName'))]",
+        "subnetRef": "[concat(variables('vnetId'), '/subnets/', variables('subnetName'))]",
+        "nicName": "jupyter-VMNic",
+        "dataDiskResourcesName": "[concat(variables('vmName'), '-datadisk1')]",
+        "managedDiskRef": "[resourceId('Microsoft.Compute/disks', variables('dataDiskResourcesName'))]",
+        "storageAccountName": "[concat(uniquestring(resourceGroup().id), 'jupyter')]",
+	"scriptLocation": "https://raw.githubusercontent.com/informatics-lab/aml-jupyterhub/feature/deploy-to-azure-button/deployment_scripts/install.sh",
+	"runScriptLocation": "https://raw.githubusercontent.com/informatics-lab/aml-jupyterhub/feature/deploy-to-azure-button/deployment_scripts/run.sh"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Network/networkSecurityGroups",
+            "apiVersion": "2019-06-01",
+            "name": "[variables('networkSecurityGroupName')]",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "securityRules": [
+                    {
+                        "name": "HTTP",
+                        "properties": {
+                            "priority": 300,
+                            "protocol": "TCP",
+                            "access": "Allow",
+                            "direction": "Inbound",
+                            "sourceAddressPrefix": "*",
+                            "sourcePortRange": "*",
+                            "destinationAddressPrefix": "*",
+                            "destinationPortRange": "80"
+                        }
+                    },
+                    {
+                        "name": "HTTPS",
+                        "properties": {
+                            "priority": 310,
+                            "protocol": "TCP",
+                            "access": "Allow",
+                            "direction": "Inbound",
+                            "sourceAddressPrefix": "*",
+                            "sourcePortRange": "*",
+                            "destinationAddressPrefix": "*",
+                            "destinationPortRange": "443"
+                        }
+                    },
+                    {
+                        "name": "SSH",
+                        "properties": {
+                            "priority": 340,
+                            "protocol": "TCP",
+                            "access": "Allow",
+                            "direction": "Inbound",
+                            "sourceAddressPrefix": "*",
+                            "sourcePortRange": "*",
+                            "destinationAddressPrefix": "*",
+                            "destinationPortRange": "22"
+                        }
+                    },
+		    {
+                        "name": "Jupyter",
+                        "properties": {
+                            "priority": 350,
+                            "protocol": "TCP",
+                            "access": "Allow",
+                            "direction": "Inbound",
+                            "sourceAddressPrefix": "*",
+                            "sourcePortRange": "*",
+                            "destinationAddressPrefix": "*",
+                            "destinationPortRange": "8000"
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "type": "Microsoft.Network/virtualNetworks",
+            "apiVersion": "2019-06-01",
+            "name": "[variables('virtualNetworkName')]",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "addressSpace": {
+                    "addressPrefixes": [
+                        "[variables('addressPrefix')]"
+                    ]
+                },
+                "subnets": [
+                    {
+                        "name": "[variables('subnetName')]",
+                        "properties": {
+                            "addressPrefix": "[variables('subnet1Prefix')]"
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "type": "Microsoft.Network/publicIpAddresses",
+            "apiVersion": "2019-06-01",
+            "name": "[variables('publicIpAddressName')]",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "publicIpAllocationMethod": "[variables('publicIPAddressType')]",
+		"dnsSettings": {
+		    "domainNameLabel": "[variables('domainNameLabel')]"
+		}
+            },
+            "sku": {
+                "name": "Basic",
+                "tier": "Regional"
+            }
+        },
+        {
+            "type": "Microsoft.Network/networkInterfaces",
+            "apiVersion": "2019-06-01",
+            "name": "[variables('nicName')]",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[concat('Microsoft.Network/networkSecurityGroups/', variables('networkSecurityGroupName'))]",
+                "[concat('Microsoft.Network/publicIpAddresses/', variables('publicIpAddressName'))]",
+                "[concat('Microsoft.Network/virtualNetworks/', variables('virtualNetworkName'))]"
+            ],
+            "properties": {
+                "ipConfigurations": [
+                    {
+                        "name": "ipconfig1",
+                        "properties": {
+                            "subnet": {
+                                "id": "[variables('subnetRef')]"
+                            },
+                            "privateIPAllocationMethod": "Dynamic",
+                            "publicIpAddress": {
+                                "id": "[resourceId(resourceGroup().name, 'Microsoft.Network/publicIpAddresses', variables('publicIpAddressName'))]"
+                            }
+                        }
+                    }
+                ],
+                "networkSecurityGroup": {
+                    "id": "[variables('nsgId')]"
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Storage/storageAccounts",
+            "apiVersion": "2019-06-01",
+            "name": "[variables('storageAccountName')]",
+            "location": "[resourceGroup().location]",
+            "sku": {
+                "name": "Standard_LRS"
+            },
+            "kind": "Storage",
+            "properties": {
+            }
+        },
+        {
+            "type": "Microsoft.Compute/disks",
+            "name": "[variables('dataDiskResourcesName')]",
+            "apiVersion": "2018-06-01",
+            "location": "[resourceGroup().location]",
+            "sku": {
+                "name": "Standard_LRS"
+            },
+            "properties": {
+                "diskSizeGB": "1024",
+                "creationData": {
+                    "createOption": "empty"
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Compute/virtualMachines",
+            "apiVersion": "2019-07-01",
+            "name": "[parameters('virtualMachineName')]",
+            "location": "[resourceGroup().location]",
+            "tags": {
+                "displayName": "aml-jupyterhub"
+            },
+            "dependsOn": [
+                "[variables('managedDiskRef')]",
+                "[concat('Microsoft.Network/networkInterfaces/', variables('nicName'))]",
+                "[resourceId('Microsoft.Storage/storageAccounts/', variables('storageAccountName'))]"
+            ],
+            "properties": {
+                "hardwareProfile": {
+                    "vmSize": "Standard_D2s_v3"
+                },
+                "storageProfile": {
+                    "osDisk": {
+                        "createOption": "fromImage"
+                    },
+                    "imageReference": {
+                        "publisher": "Canonical",
+                        "offer": "UbuntuServer",
+                        "sku": "18.04-LTS",
+                        "version": "latest"
+                    },
+                    "dataDisks": [
+                        {
+                            "name": "[variables('dataDiskResourcesName')]",
+                            "lun": 0,
+                            "createOption": "attach",
+                            "managedDisk": {
+                                "id": "[variables('managedDiskRef')]"
+                            }
+                        }
+                    ]
+                },
+                "networkProfile": {
+                    "networkInterfaces": [
+                        {
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('nicName'))]"
+                        }
+                    ]
+                },
+                "osProfile": {
+                    "computerName": "[variables('vmName')]",
+                    "adminUsername": "[parameters('adminUsername')]",
+		    "linuxConfiguration": {
+			"disablePasswordAuthentication": true,
+			"ssh": {
+			    "publicKeys": [
+				{
+				    "path": "[concat('/home/', parameters('adminUsername'), '/.ssh/authorized_keys')]",
+				    "keyData": "[parameters('adminPublicKey')]"
+				}
+			    ]
+			}
+
+		    }
+		}
+	    },
+	    "resources": [
+                {
+		    "type": "Microsoft.Compute/virtualMachines/extensions",
+                    "apiVersion": "2019-07-01",
+                    "name": "[concat(variables('vmName'),'/installscript')]",
+                    "location": "[resourceGroup().location]",
+                    "dependsOn": [
+                        "[concat('Microsoft.Compute/virtualMachines/', concat(variables('vmName')))]"
+                    ],
+                    "tags": {
+                        "displayName": "Execute Jupyter install script"
+                    },
+                    "properties": {
+                        "publisher": "Microsoft.Azure.Extensions",
+                        "type": "CustomScript",
+                        "typeHandlerVersion": "2.0",
+                        "autoUpgradeMinorVersion": true,
+                        "protectedSettings": {
+                            "commandToExecute": "[concat('basename ', variables('scriptLocation'), ' | xargs -I % bash \"%\" ', parameters('adminUsername'), ' ', subscription().subscriptionId, ' ',resourceGroup().location, ' ',parameters('tenantId'), ' ',parameters('clientId'), ' ',parameters('clientSecret'), ' ',variables('domainNameLabel'), ' ', variables('runScriptLocation') )]",
+                            "fileUris": [
+                                "[variables('scriptLocation')]"
+                            ]
+                        }
+                    }
+                }
+            ]
+        }
+    ],
+    "outputs": {
+        "adminUsername": {
+            "type": "string",
+            "value": "[parameters('adminUsername')]"
+        }
+    }
+}

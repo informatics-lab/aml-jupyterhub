@@ -1,10 +1,24 @@
 # aml_jupyterhub
 
+
 ## About
 
 Code work and experiments to integrate Azure Machine Learning with JupyterHub.
 * `aml_jupyterhub/aml_spawner.py` - Custom JupyterHub spawner that spawns compute instances on Azure Machine Learning.
 * `deployments/azure_ad_auth_spawn_aml/jupyterhub_config.py` - JupyterHub configuration file
+
+## How to deploy on Azure
+
+This repository contains an "ARM template" which can be used via the button below to deploy a JupyterHub spawner on Azure.  See [here](deploytoazure.md) for more details.
+
+<table style="width:auto; margin-left:auto; margin-right:auto;">
+ <tr>
+ <td align='center' width='100%'>
+ <a href="https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Finformatics-lab%2Faml-jupyterhub%2Ffeature%2Fdeploy-to-azure-button%2Fazuredeploy.json" target="_blank">
+ <img src="https://raw.githubusercontent.com/Azure/azure-quickstart-templates/master/1-CONTRIBUTION-GUIDE/images/deploytoazure.svg?sanitize=true"/>
+ </td>
+ </tr>
+ </table>
 
 ## How to develop
 

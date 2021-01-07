@@ -4,3 +4,4 @@
 **/jupyterhub-proxy.pid
 **/jupyterhub.sqlite
 scratch.py
+*~
