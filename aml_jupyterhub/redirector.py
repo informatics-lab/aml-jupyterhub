@@ -30,8 +30,8 @@ class RedirectServer:
 
     @classmethod
     def get_existing_redirect(cls, url):
-        port = cls._redirects.get('port')
-        return port if ("0.0.0.0", port) else None
+        port = cls._redirects.get(url)
+        return ("0.0.0.0", port) if port else None
 
     @classmethod
     def _get_free_port(cls):
