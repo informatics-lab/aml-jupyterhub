@@ -55,7 +55,12 @@ class RedirectServer:
 
     def stop(self):
         try:
-            self.server_process.terminate()
+            # Using .kill() instead of .terminate(), as apparently JupyterHub
+            # end up observing a SIGTERM signal when .terminate() is used which
+            # causes it to shut down. Note that SIGTERM is like a kind request,
+            # while SIGKILL is a forceful demand, and we don't mind shutting
+            # down the redirection server process forcefully.
+            self.server_process.kill()
             del RedirectServer._redirects[self.url]
 
         except Exception as e:
