@@ -43,6 +43,7 @@ bash ~/miniconda.sh -b -p /home/${1}/miniconda
 
 # clone the aml-jupyterhub repo
 git clone https://github.com/informatics-lab/aml-jupyterhub
+cd aml-jupyterhub; git checkout feature/jupyterlab-dask-extension; cd - ;
 
 # Install certbot/letsencrypt
 snap install core; snap refresh core

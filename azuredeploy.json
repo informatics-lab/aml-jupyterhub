@@ -64,8 +64,8 @@
         "dataDiskResourcesName": "[concat(variables('vmName'), '-datadisk1')]",
         "managedDiskRef": "[resourceId('Microsoft.Compute/disks', variables('dataDiskResourcesName'))]",
         "storageAccountName": "[concat(uniquestring(resourceGroup().id), 'jupyter')]",
-	"scriptLocation": "https://raw.githubusercontent.com/informatics-lab/aml-jupyterhub/master/deployment_scripts/install.sh",
-	"runScriptLocation": "https://raw.githubusercontent.com/informatics-lab/aml-jupyterhub/master/deployment_scripts/run.sh"
+	"scriptLocation": "https://raw.githubusercontent.com/informatics-lab/aml-jupyterhub/feature/jupyterlab-dask-extension/deployment_scripts/install.sh",
+	"runScriptLocation": "https://raw.githubusercontent.com/informatics-lab/aml-jupyterhub/feature/jupyterlab-dask-extension/deployment_scripts/run.sh"
     },
     "resources": [
         {
