@@ -128,6 +128,9 @@ class AMLSpawner(Spawner):
         an md5 hash, and use the first 24 characters as the CI name.
         """
         input_str = self.user.name + self.workspace_name + self.vm_size
+        # if we have a named server, include this to ensure unique CI name
+        if self.name:
+            input_str += self.name
         output_hash = hashlib.md5(input_str.encode("utf-8"))
         truncated_username = self._sanitize_and_truncate_username(self.user.name)
         return "ci-"+truncated_username+"-"+output_hash.hexdigest()[:8]
