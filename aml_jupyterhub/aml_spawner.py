@@ -167,6 +167,7 @@ class AMLSpawner(Spawner):
         vm_sizes = self.available_vm_sizes.keys()
         project_opt = '\n'.join([f"<option value=\"{rg}\">{rg}</option>" for rg in filtered_rg_names])
         vm_size_opt = '\n'.join([f"<option value=\"{vm}\">{vm}</option>" for vm in vm_sizes])
+        app_opt = '\n'.join(["JupyterLab", "RStudio"])
         return f"""
         <h2>Welcome {self.user.name}.</h2>
         <div class="form-group">
@@ -179,6 +180,12 @@ class AMLSpawner(Spawner):
             <label for="vm_select">Select the size for your Virtual Machine:</label>
             <select name="vm_select" class="form-control">
                 {vm_size_opt}
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="app_select">Select JupyterLab or RStudio:</label>
+            <select name="app_select" class="form-control">
+                {app_opt}
             </select>
         </div>
         """
@@ -194,7 +201,7 @@ class AMLSpawner(Spawner):
         self.vm_size = self.available_vm_sizes[size_selected]
         # CI name - workspace name + Small/Medium/Large
         self.compute_instance_name = self._construct_ci_name()
-
+        self.app = formdata.get("app_select")[0]
 
     def _start_recording_events(self):
         self._events = []
@@ -351,7 +358,15 @@ class AMLSpawner(Spawner):
 
     def get_url(self):
         """An AzureML compute instance knows how to get its JupyterLab instance URL, so expose it."""
-        key = "Jupyter Lab"
+        if self.app == "JupyterLab":
+            key = "Jupyter Lab"
+        elif self.app == "RStudio":
+            if "RStudio" in self.application_utils.keys():
+                key = "RStudio"
+            elif "R Studio" in self.application_utils.keys():
+                key = "R Studio"
+            else:
+                raise RuntimeError("Unable to find key for RStudio: {}".format(self.application_urls))
         return None if self.application_urls is None else self.application_urls[key]
 
     @ async_generator
