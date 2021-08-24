@@ -165,9 +165,10 @@ class AMLSpawner(Spawner):
         rg_names = [rg.as_dict()["name"] for rg in self.res_mgmt_client.resource_groups.list()]
         filtered_rg_names = self._filter_rg_names(rg_names)
         vm_sizes = self.available_vm_sizes.keys()
+        apps = ["JupyterLab", "RStudio"]
         project_opt = '\n'.join([f"<option value=\"{rg}\">{rg}</option>" for rg in filtered_rg_names])
         vm_size_opt = '\n'.join([f"<option value=\"{vm}\">{vm}</option>" for vm in vm_sizes])
-        app_opt = '\n'.join(["JupyterLab", "RStudio"])
+        app_opt = '\n'.join([f"<option value=\"{app}\">{app}</option>" for app in apps])
         return f"""
         <h2>Welcome {self.user.name}.</h2>
         <div class="form-group">
