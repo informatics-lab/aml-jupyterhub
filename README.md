@@ -14,7 +14,7 @@ This repository contains an "ARM template" which can be used via the button belo
 <table style="width:auto; margin-left:auto; margin-right:auto;">
  <tr>
  <td align='center' width='100%'>
- <a href="https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Finformatics-lab%2Faml-jupyterhub%2Ffeature%2Fjupyterlab-dask-extension%2Fazuredeploy.json" target="_blank">
+ <a href="https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Finformatics-lab%2Faml-jupyterhub%2Ffeature%2Frstudioserver%2Fazuredeploy.json" target="_blank">
  <img src="https://raw.githubusercontent.com/Azure/azure-quickstart-templates/master/1-CONTRIBUTION-GUIDE/images/deploytoazure.svg?sanitize=true"/>
  </td>
  </tr>
