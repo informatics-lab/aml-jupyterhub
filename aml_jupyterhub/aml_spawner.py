@@ -165,7 +165,7 @@ class AMLSpawner(Spawner):
         rg_names = [rg.as_dict()["name"] for rg in self.res_mgmt_client.resource_groups.list()]
         filtered_rg_names = self._filter_rg_names(rg_names)
         vm_sizes = self.available_vm_sizes.keys()
-        apps = ["JupyterLab", "RStudio"]
+        apps = ["JupyterLab", "Jupyter notebook", "RStudio"]
         project_opt = '\n'.join([f"<option value=\"{rg}\">{rg}</option>" for rg in filtered_rg_names])
         vm_size_opt = '\n'.join([f"<option value=\"{vm}\">{vm}</option>" for vm in vm_sizes])
         app_opt = '\n'.join([f"<option value=\"{app}\">{app}</option>" for app in apps])
@@ -184,7 +184,7 @@ class AMLSpawner(Spawner):
             </select>
         </div>
         <div class="form-group">
-            <label for="app_select">Select JupyterLab or RStudio:</label>
+            <label for="app_select">Select Jupyter(Lab) or RStudio:</label>
             <select name="app_select" class="form-control">
                 {app_opt}
             </select>
@@ -361,14 +361,15 @@ class AMLSpawner(Spawner):
         """An AzureML compute instance knows how to get its JupyterLab instance URL, so expose it."""
         if self.app == "JupyterLab":
             key = "Jupyter Lab"
+        if self.app == "Jupyter notebook":
+            key = "Jupyter"
         elif self.app == "RStudio":
-            if "RStudio" in self.application_utils.keys():
-                key = "RStudio"
-            elif "R Studio" in self.application_utils.keys():
-                key = "R Studio"
-            else:
-                raise RuntimeError("Unable to find key for RStudio: {}".format(self.application_urls))
-        return None if self.application_urls is None else self.application_urls[key]
+            key = "RStudio"
+
+        url = None if self.application_urls is None else self.application_urls[key]
+        self.log.info(f"Returning the URL {url} for key {key}.")
+        self._add_event(f"Returning the URL {url} for key {key}.")
+        return url
 
     @ async_generator
     async def progress(self):
